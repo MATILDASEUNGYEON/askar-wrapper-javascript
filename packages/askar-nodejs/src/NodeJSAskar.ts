@@ -136,6 +136,7 @@ import {
   toNativeCallbackWithResponse,
   toNativeLogCallback,
   toVoidPointerCallback,
+  createNativeCallback,
 } from './ffi/callback'
 import {
   encryptedBufferStructToClass,
@@ -338,10 +339,45 @@ export class NodeJSAskar implements Askar {
       }
       
       // Add timeout to detect if callback is never called
-      setTimeout(() => {
-        // console.log('[promisifyWithResponse] Timeout reached - callback was never called')
-        reject(new Error('Callback timeout - native function did not call the callback'))
-      }, 5000)
+      // setTimeout(() => {
+      //   // console.log('[promisifyWithResponse] Timeout reached - callback was never called')
+      //   reject(new Error('Callback timeout - native function did not call the callback'))
+      // }, 5000)
+    })
+  }
+
+
+  // Generic promisify function for any callback signature
+  private promisifyWithCustomResponse = async <Return, Args extends any[]>(
+    method: (nativeCallbackPtr: koffi.IKoffiRegisteredCallback, id: number) => number,
+    ffiTypes: any[],
+    responseIndex: number = 0 // Which argument is the response (0-based index)
+  ): Promise<Return | null> => {
+    return new Promise((resolve, reject) => {
+      const cb = (id: number, errorCode: number, ...args: Args) => {
+        deallocateCallbackBuffer(id)
+
+        if (errorCode !== 0) {
+          const error = this.getAskarError(errorCode)
+          reject(error)
+          return
+        }
+
+        // Return the response at the specified index
+        const response = args[responseIndex]
+        resolve(response as unknown as Return)
+      }
+      
+      const { nativeCallback, id } = createNativeCallback(cb, ffiTypes)
+      
+      const errorCode = method(nativeCallback, +id)
+      
+      if (errorCode !== 0) {
+        deallocateCallbackBuffer(id)
+        const error = this.getAskarError(errorCode)
+        reject(error)
+        return
+      }
     })
   }
 
@@ -1125,9 +1161,10 @@ public storeGenerateRawKey(options: StoreGenerateRawKeyOptions): string {
   }
   public async storeRemove(options: StoreRemoveOptions): Promise<number> {
     const { specUri } = serializeArguments(options)
-    const response = await this.promisifyWithResponse<number>(
+    const response = await this.promisifyWithCustomResponse<number, [number]>(
       (cb, cbId) => this.nativeAskar.askar_store_remove(specUri, cb, cbId),
-      FFI_INT8
+      [FFI_INT8], // removed: i8
+      0 // response is at index 0 (first argument after id, errorCode)
     )
 
     return handleInvalidNullResponse(response)

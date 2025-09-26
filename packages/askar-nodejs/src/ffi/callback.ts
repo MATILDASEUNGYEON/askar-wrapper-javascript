@@ -1,6 +1,6 @@
 import koffi from 'koffi'
 import { allocateCallbackBuffer } from './alloc'
-import { FFI_CALLBACK_ID, FFI_ERROR_CODE, FFI_INT32, FFI_STRING, FFI_VOID, FFI_STORE_HANDLE } from './primitives'
+import { FFI_CALLBACK_ID, FFI_ERROR_CODE, FFI_INT32, FFI_STRING, FFI_VOID, FFI_STORE_HANDLE, FFI_INT8 } from './primitives'
 
 // Generate unique type names to avoid conflicts
 let typeCounter = 0
@@ -118,13 +118,61 @@ export const toNativeLogCallback = (cb: NativeLogCallback) => {
 }
 
 // Custom logger callback types for askar_set_custom_logger
-export const EnabledCallback = koffi.proto('int8 (*)(const void*, int32)')
-export const LogCallback = koffi.proto('void (*)(const void*, int32, const char*, const char*, const char*, const char*, int32)')
-export const FlushCallback = koffi.proto('void (*)(const void*)')
+export const EnabledCallback = koffi.proto('int8 (const void*, int32)')
+export const LogCallback = koffi.proto('void (const void*, int32, const char*, const char*, const char*, const char*, int32)')
+export const FlushCallback = koffi.proto('void (const void*)')
 
 // Migration callback for askar_migrate_indy_sdk
 // This uses the same signature as NativeCallback: (cb_id: CallbackId, err: ErrorCode)
 export const toNativeMigrationCallback = (cb: NativeCallback) => {
   // Use the existing toNativeCallback function since the signature is identical
   return toNativeCallback(cb)
+}
+
+// Store remove callback: (cb_id: CallbackId, err: ErrorCode, removed: i8)
+export type NativeStoreRemoveCallback = (id: number, errorCode: number, removed: number) => void
+export const toNativeStoreRemoveCallback = (cb: NativeStoreRemoveCallback) => {
+  const typeName = generateUniqueTypeName('NativeStoreRemoveCallback')
+  const NativeStoreRemoveCallbackType = koffi.proto(typeName, FFI_VOID, [
+    FFI_CALLBACK_ID, 
+    FFI_ERROR_CODE, 
+    FFI_INT8  // removed: i8
+  ])
+  const NativeStoreRemoveCallbackPtrType = koffi.pointer(NativeStoreRemoveCallbackType)
+  
+  const nativeCallback = koffi.register(cb, NativeStoreRemoveCallbackPtrType)
+  const id = allocateCallbackBuffer(nativeCallback)
+  return { nativeCallback, id }
+}
+
+// Generic callback converter for different signatures
+// This provides a more scalable approach for future callback types
+export const createNativeCallback = <T extends any[]>(
+  cb: (id: number, errorCode: number, ...args: T) => void,
+  ffiTypes: any[]
+) => {
+  const typeName = generateUniqueTypeName('GenericCallback')
+  const GenericCallbackType = koffi.proto(typeName, FFI_VOID, [
+    FFI_CALLBACK_ID,
+    FFI_ERROR_CODE,
+    ...ffiTypes
+  ])
+  const GenericCallbackPtrType = koffi.pointer(GenericCallbackType)
+  
+  const nativeCallback = koffi.register(cb as any, GenericCallbackPtrType)
+  const id = allocateCallbackBuffer(nativeCallback)
+  return { nativeCallback, id }
+}
+
+// Predefined callback types for common patterns
+export const createStringResponseCallback = (cb: (id: number, errorCode: number, result: string) => void) => {
+  return createNativeCallback(cb, [FFI_STRING])
+}
+
+export const createInt8ResponseCallback = (cb: (id: number, errorCode: number, result: number) => void) => {
+  return createNativeCallback(cb, [FFI_INT8])
+}
+
+export const createHandleResponseCallback = (cb: (id: number, errorCode: number, handle: number) => void) => {
+  return createNativeCallback(cb, [FFI_STORE_HANDLE])
 }

@@ -35,7 +35,7 @@ export type NativeMethods = {
   askar_key_aead_random_nonce(handle: VoidPointer, out: SecretBufferType): number
   askar_key_aead_get_params(handle: VoidPointer, out: object): number
   askar_key_aead_get_padding(handle: VoidPointer, msg_len: number, out: NumberPtr): number
-  askar_key_aead_encrypt(handle: VoidPointer, message: ByteBufferType, nonce: ByteBufferType, add: ByteBufferType, out: EncryptedBufferType): number
+  askar_key_aead_encrypt(handle: VoidPointer, message: ByteBufferType, nonce: ByteBufferType, aad: ByteBufferType, out: EncryptedBufferType): number
   askar_key_aead_decrypt(handle: VoidPointer, ciphertext: ByteBufferType, nonce: ByteBufferType, tag: ByteBufferType, add: ByteBufferType, out: SecretBufferType): number
   askar_key_sign_message(handle: VoidPointer, message: ByteBufferType, sig_type: string, out: SecretBufferType): number
   askar_key_verify_signature(handle: VoidPointer, message: ByteBufferType, signature: ByteBufferType, sig_type: string, out: NumberPtr): number
@@ -98,10 +98,10 @@ export type NativeMethods = {
   askar_store_remove_profile(handle: SizeHandle, profile: string, cb: VoidPointer, cb_id: number): number
   askar_store_get_default_profile(handle: SizeHandle, cb: VoidPointer, cb_id: number): number
   askar_store_set_default_profile(handle: SizeHandle, profile: string, cb: VoidPointer, cb_id: number): number
-  // askar_store_rename_profile(handle: SizeHandle, from_profile: string, to_profile: string, cb: VoidPointer, cb_id: number): number // Function not available in current DLL
+  askar_store_rename_profile(handle: SizeHandle, from_profile: string, to_profile: string, cb: VoidPointer, cb_id: number): number // Function not available in current DLL
   askar_store_rekey(handle: SizeHandle, key_method: string, pass_key: string, cb: VoidPointer, cb_id: number): number
   askar_store_copy(handle: SizeHandle, target_uri: string, key_method: string, pass_key: string, recreate: number, cb: VoidPointer, cb_id: number): number
-  // askar_store_copy_profile(from_handle: SizeHandle, to_handle: SizeHandle, from_profile: string, to_profile: string, cb: VoidPointer, cb_id: number): number // Function not available in current DLL
+  askar_store_copy_profile(from_handle: SizeHandle, to_handle: SizeHandle, from_profile: string, to_profile: string, cb: VoidPointer, cb_id: number): number // Function not available in current DLL
   askar_store_close(handle: SizeHandle, cb: VoidPointer, cb_id: number): number
   
   // Scan functions - Scan handles are size_t (SizeHandle)

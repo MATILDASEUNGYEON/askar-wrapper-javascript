@@ -54,7 +54,7 @@
   },
   "dependencies": {
     "@openwallet-foundation/askar-shared": "workspace:*",
-    "koffi": "^2.14.1"
+    "koffi": "^2.15.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",

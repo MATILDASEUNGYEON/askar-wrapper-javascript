@@ -11,7 +11,7 @@ export class CallbackManager {
     resolve: (value: any) => void
     reject: (error: any) => void
     registeredCallback: any
-    timeoutId?: NodeJS.Timeout
+    // timeoutId?: NodeJS.Timeout
   }>()
   private callbackCounter = 0
 
@@ -45,9 +45,9 @@ export class CallbackManager {
         }
 
         // 타임아웃 클리어
-        if (callbackInfo.timeoutId) {
-          clearTimeout(callbackInfo.timeoutId)
-        }
+        // if (callbackInfo.timeoutId) {
+        //   clearTimeout(callbackInfo.timeoutId)
+        // }
 
         // 콜백 정리
         this.cleanupCallback(id)
@@ -67,21 +67,21 @@ export class CallbackManager {
       const bufferId = allocateCallbackBuffer(registeredCallback)
 
       // 타임아웃 설정
-      const timeoutId = setTimeout(() => {
-        const callbackInfo = this.activeCallbacks.get(callbackId)
-        if (callbackInfo) {
-          console.error(`⏰ Callback timeout for id: ${callbackId}`)
-          this.cleanupCallback(callbackId)
-          callbackInfo.reject(new Error('Callback timeout'))
-        }
-      }, timeoutMs)
+      // const timeoutId = setTimeout(() => {
+      //   const callbackInfo = this.activeCallbacks.get(callbackId)
+      //   if (callbackInfo) {
+      //     console.error(`⏰ Callback timeout for id: ${callbackId}`)
+      //     this.cleanupCallback(callbackId)
+      //     callbackInfo.reject(new Error('Callback timeout'))
+      //   }
+      // }, timeoutMs)
 
       // 콜백 정보 저장
       this.activeCallbacks.set(callbackId, {
         resolve,
         reject,
         registeredCallback,
-        timeoutId
+        // timeoutId
       })
 
       // 네이티브 함수 호출
@@ -121,9 +121,9 @@ export class CallbackManager {
   private cleanupCallback(id: number) {
     const callbackInfo = this.activeCallbacks.get(id)
     if (callbackInfo) {
-      if (callbackInfo.timeoutId) {
-        clearTimeout(callbackInfo.timeoutId)
-      }
+      // if (callbackInfo.timeoutId) {
+      //   clearTimeout(callbackInfo.timeoutId)
+      // }
       try {
         koffi.unregister(callbackInfo.registeredCallback)
       } catch (error) {

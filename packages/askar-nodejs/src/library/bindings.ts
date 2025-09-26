@@ -57,7 +57,7 @@ export const nativeBindings = {
   askar_version: 'const char *askar_version()',//OK
 
   // result_list.rs
-  askar_entry_list_count: 'uint askar_entry_list_count(void *handle, _Out_int32 *count_out)',//OK
+  askar_entry_list_count: 'uint askar_entry_list_count(void *handle, _Out_ int32 *count_out)',//OK
   askar_entry_list_get_category: 'uint askar_entry_list_get_category(void *handle, int32 index, _Out_ const char **category_out)',//OK
   askar_entry_list_get_name: 'uint askar_entry_list_get_name(void *handle, int32 index, _Out_ const char **name_out)',//OK
   askar_entry_list_get_value: 'uint askar_entry_list_get_value(void *handle, int32 index, _Out_ SecretBuffer *value_out)',//OK
@@ -66,14 +66,14 @@ export const nativeBindings = {
 //여기까지
   askar_key_entry_list_count: 'uint askar_key_entry_list_count(void *handle, _Out_ int32 *count_out)',//OK
   askar_key_entry_list_free: 'void askar_key_entry_list_free(void *handle)',//OK
-  askar_key_entry_list_get_algorithm: 'uint askar_key_entry_list_get_algorithm(void *handle, int32 index, _Out_ string *alg_out)',//OK
-  askar_key_entry_list_get_name: 'uint askar_key_entry_list_get_name(void *handle, int32 index, _Out_ string *name_out)',//OK
-  askar_key_entry_list_get_metadata: 'uint askar_key_entry_list_get_metadata(void *handle, int32 index, _Out_ string *metadata_out)',//OK
-  askar_key_entry_list_get_tags: 'uint askar_key_entry_list_get_tags(void *handle, int32 index, _Out_ string *out)',//OK
+  askar_key_entry_list_get_algorithm: 'uint askar_key_entry_list_get_algorithm(void *handle, int32 index, _Out_ const char **alg_out)',//OK
+  askar_key_entry_list_get_name: 'uint askar_key_entry_list_get_name(void *handle, int32 index, _Out_ const char **name_out)',//OK
+  askar_key_entry_list_get_metadata: 'uint askar_key_entry_list_get_metadata(void *handle, int32 index, _Out_ const char **metadata_out)',//OK
+  askar_key_entry_list_get_tags: 'uint askar_key_entry_list_get_tags(void *handle, int32 index, _Out_ const char **tags_out)',//OK
   askar_key_entry_list_load_local: 'uint askar_key_entry_list_load_local(void *handle, int32 index, _Out_ void **out)',//OK
 
-  askar_string_list_count: 'uint askar_string_list_count(void *handle, int32 *count_out)',//OK
-  askar_string_list_get_item: 'uint askar_string_list_get_item(void *handle, int32 index, const char **item_out)',//OK
+  askar_string_list_count: 'uint askar_string_list_count(void *handle, _Out_ int32 *count_out)',//OK
+  askar_string_list_get_item: 'uint askar_string_list_get_item(void *handle, int32 index, _Out_ const char **item_out)',//OK
   askar_string_list_free: 'void askar_string_list_free(void *handle)',//OK
 
   //secret.rs
@@ -90,10 +90,10 @@ export const nativeBindings = {
   askar_store_remove_profile:'uint askar_store_remove_profile(size_t handle, const char *profile, void *cb, int64 cb_id)',//OK
   askar_store_get_default_profile: 'uint askar_store_get_default_profile(size_t handle, void *cb, int64 cb_id)',//OK
   askar_store_set_default_profile: 'uint askar_store_set_default_profile(size_t handle, const char *profile, void *cb, int64 cb_id)',//OK
-  // askar_store_rename_profile:'uint askar_store_rename_profile(size_t handle, const char *from_profile, const char *to_profile, void *cb, int64 cb_id)', // Function not available in current DLL
+  askar_store_rename_profile:'uint askar_store_rename_profile(size_t handle, const char *from_profile, const char *to_profile, void *cb, int64 cb_id)', // Function not available in current DLL
   askar_store_rekey: 'uint askar_store_rekey(size_t handle, const char *key_method, const char *pass_key, void *cb, int64 cb_id)',
   askar_store_copy: 'uint askar_store_copy(size_t handle, const char *target_uri, const char *key_method, const char *pass_key, int8 recreate, void *cb, int64 cb_id)',
-  // askar_store_copy_profile: 'uint askar_store_copy_profile(size_t from_handle, size_t to_handle, const char *from_profile, const char *to_profile, void *cb, int64 cb_id)', // Function not available in current DLL
+  askar_store_copy_profile: 'uint askar_store_copy_profile(size_t from_handle, size_t to_handle, const char *from_profile, const char *to_profile, void *cb, int64 cb_id)', // Function not available in current DLL
   askar_store_close: 'uint askar_store_close(size_t handle, void *cb, int64 cb_id)',//OK
 
   askar_scan_start: 'uint askar_scan_start(size_t handle, const char *profile, const char *category, const char *tag_filter, int64 offset, int64 limit, const char *order_by, int8 descending, void *cb, int64 cb_id)',//OK
