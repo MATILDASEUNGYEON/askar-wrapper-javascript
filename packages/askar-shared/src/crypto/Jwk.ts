@@ -32,6 +32,21 @@ export class Jwk {
   }
 
   public toUint8Array() {
-    return Uint8Array.from(Buffer.from(JSON.stringify(this)))
+    // undefined 속성들을 제외하고 유효한 속성들만 포함하여 JWK 생성
+    const jwkObject: Record<string, any> = {
+      kty: this.kty,
+      crv: this.crv,
+      x: this.x,
+    }
+    
+    if (this.d !== undefined) {
+      jwkObject.d = this.d
+    }
+    
+    if (this.y !== undefined) {
+      jwkObject.y = this.y
+    }
+    
+    return Uint8Array.from(Buffer.from(JSON.stringify(jwkObject)))
   }
 }

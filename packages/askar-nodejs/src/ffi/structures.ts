@@ -1,40 +1,57 @@
-import { default as ref, refType } from '@2060.io/ref-napi'
-import refArray from 'ref-array-di'
-import refStruct from 'ref-struct-di'
-import { FFI_INT32, FFI_INT64, FFI_UINT8 } from './primitives'
+// structures.ts (Koffi)
+import koffi from 'koffi'
+import {
+  FFI_UINT8,
+  FFI_INT32,
+  FFI_INT64,
+} from './primitives'
 
-const CStruct = refStruct(ref)
-const CArray = refArray(ref)
+// ===== ByteBuffer =====
+// ref-napi에선 CArray(FFI_UINT8) + pointer 였지만,
+// Koffi에선 가변 길이 바이트 버퍼는 uint8_t* 포인터면 충분합니다.
+export const ByteBufferArrayPtr = koffi.pointer(FFI_UINT8) // uint8_t*
 
-export const ByteBufferArray = CArray(FFI_UINT8)
-export const ByteBufferArrayPtr = refType(ByteBufferArray)
-
-export const ByteBufferStruct = CStruct({
-  len: FFI_INT64,
-  data: ByteBufferArrayPtr,
+export const ByteBufferStruct = koffi.struct('ByteBuffer',{
+  len : FFI_INT64,            // int64_t
+  data : ByteBufferArrayPtr
 })
 
-const ByteBufferStructPtr = ref.refType(ByteBufferStruct)
+export const ByteBufferStructPtr = koffi.pointer(ByteBufferStruct)
 
-export const SecretBufferStruct = ByteBufferStruct
+// SecretBuffer는 ByteBuffer와 동일 레이아웃
+// export const SecretBufferStruct     = ByteBufferStruct
+export const SecretBufferStruct = koffi.struct('SecretBuffer',{
+  len: FFI_INT64,            // int64_t
+  data: ByteBufferArrayPtr
+})
+export const SecretBufferStructPtr  = ByteBufferStructPtr
 
-export const SecretBufferStructPtr = ByteBufferStructPtr
-
-export const EncryptedBufferStruct = CStruct({
-  secretBuffer: SecretBufferStruct,
-  tagPos: FFI_INT64,
-  noncePos: FFI_INT64,
+// ===== EncryptedBuffer =====
+// Rust/Askar FFI에서 암호문 버퍼(SecretBuffer)와 tag/nonce 위치를 함께 반환
+export const EncryptedBufferStruct = koffi.struct('EncryptedBuffer', {
+  secretBuffer: SecretBufferStruct, // ByteBuffer
+  tagPos: FFI_INT64,                // int64_t
+  noncePos: FFI_INT64,              // int64_t
 })
 
-export const EncryptedBufferStructPtr = ref.refType(EncryptedBufferStruct)
+export const EncryptedBufferStructPtr = koffi.pointer(EncryptedBufferStruct)
 
-export const AeadParamsStruct = CStruct({
-  nonceLength: FFI_INT32,
-  tagLength: FFI_INT32,
+// ===== AEAD Params =====
+export const AeadParamsStruct = koffi.struct('AeadParams', {
+  nonceLength: FFI_INT32,  // int32_t
+  tagLength: FFI_INT32,    // int32_t
 })
 
-export const AeadParamsStructPtr = ref.refType(AeadParamsStruct)
+export const AeadParamsStructPtr = koffi.pointer(AeadParamsStruct)
 
-export type EncryptedBufferType = { secretBuffer: SecretBufferType; tagPos: number; noncePos: number }
-export type ByteBufferType = { data: Buffer; len: number }
+// ===== TypeScript helper types (JS 계층에서 다룰 때 참고)
+export type ByteBufferType = { data: Buffer; len: number | bigint }
 export type SecretBufferType = ByteBufferType
+export type EncryptedBufferType = {
+  secretBuffer: SecretBufferType
+  tagPos: number | bigint
+  noncePos: number | bigint
+}
+
+// (선택) ref-napi와의 호환을 위해 이름만 유지하고 싶은 경우:
+// export const ByteBufferArray = FFI_UINT8; // 사용처가 포인터만 요구한다면 생략 가능

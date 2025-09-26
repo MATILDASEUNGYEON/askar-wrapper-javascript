@@ -15,25 +15,50 @@
   "publishConfig": {
     "access": "public"
   },
-  "files": ["build", "scripts"],
+  "files": [
+    "build",
+    "scripts"
+  ],
   "scripts": {
     "types:check": "pnpm compile --noEmit",
     "build": "pnpm clean && pnpm compile",
     "clean": "rimraf -rf ./build",
     "compile": "tsc -p ./tsconfig.build.json",
-    "install": "node scripts/install.js"
+    "install": "node scripts/install.js",
+    "test:init":"ts-node tests/utils/initialize.ts",
+    "test:cryptobox":"ts-node tests/cryptobox.test.ts",
+    "test:error":"ts-node tests/error.test.ts",
+    "test:joseEcdh":"ts-node tests/joseEcdh.test.ts",
+    "test:storeRS":"ts-node tests/store.test.ts",
+    "test:all": "ts-node src/test-runner.ts",
+    "test:build": "ts-node src/build-test.ts",
+    "test:unit": "ts-node src/unit-test.ts",
+    "test:integration": "ts-node src/test-koffi.ts",
+    "test:koffi": "pnpm test:all",
+    "test:getCurrentError": "node scripts/test-getCurrentError.js",
+    "test:getCurrentError:ts": "ts-node tests/getCurrentError.test.ts",
+    "test:simple": "node scripts/simple-test.js",
+    "test:keyRS" : "ts-node tests/keys.test.ts",
+    "test:keyGenerate:algorithm": "ts-node test-keyGenerate-algorithm.js",
+    "test:logger:all": "ts-node test-logger-all.cjs",
+    "test:logger": "ts-node test-logger-custom.cjs",
+    "test:list":"ts-node test-entryListCount.js",
+    "test:list:key-entry": "ts-node test-keyEntryList.js",
+    "test:store": "ts-node test-store-functions.js",
+    "test:scan":"ts-node test-scan-functions.js",
+    "test:session-debug":"ts-node debug-session-start.js",
+    "test:session":"ts-node test-session-functions-new.js",
+    "test:jwk":"ts-node debug-jwk.js",
+    "test:store-generate":"ts-node test-store-generate.js",
+    "storeunit":"ts-node tests/store.unit.test.ts"
   },
   "dependencies": {
-    "@2060.io/ffi-napi": "^4.0.9",
-    "@2060.io/ref-napi": "^3.0.6",
     "@openwallet-foundation/askar-shared": "workspace:*",
-    "ref-array-di": "^1.2.2",
-    "ref-struct-di": "^1.1.1"
+    "koffi": "^2.14.1"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "@types/ref-array-di": "^1.2.3",
-    "@types/ref-struct-di": "^1.1.6",
+    "ts-node": "^10.9.2",
     "typescript": "catalog:"
   },
   "binary": {

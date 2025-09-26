@@ -1,9 +1,17 @@
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
-import { Library } from '@2060.io/ffi-napi'
 import type { NativeMethods } from './NativeBindingInterface'
+
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
+import koffi from 'koffi'
+
 import { nativeBindings } from './bindings'
+import { 
+  ByteBufferStruct, 
+  SecretBufferStruct, 
+  EncryptedBufferStruct, 
+  AeadParamsStruct 
+} from '../ffi/structures'
 
 // TODO(rename): when lib is changed
 const LIBNAME = 'aries_askar'
@@ -62,13 +70,34 @@ const getLibrary = () => {
   // Casting here as a string because there is a guard of none of the paths
   const validLibraryPath = libaries.find((l) => doesPathExist(l)) as string
 
-  // TODO fix the typing conversion
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-expect-error
-  return Library(validLibraryPath, nativeBindings)
+  // Load library with Koffi
+  const lib = koffi.load(validLibraryPath)
+
+  // Import and make sure custom types from structures.ts are loaded
+  // This ensures the types are available for use in function signatures
+  const { 
+    ByteBufferStruct, 
+    SecretBufferStruct, 
+    EncryptedBufferStruct, 
+    AeadParamsStruct 
+  } = require('../ffi/structures')
+
+  // Bind functions using koffi
+  const boundMethods: { [key: string]: any } = {}
+
+  for (const [funcName, signature] of Object.entries(nativeBindings)) {
+    try {
+      boundMethods[funcName] = lib.func(signature as string)
+    } catch (error) {
+      console.warn(`Warning: Failed to bind function ${funcName}: ${error}`)
+      // Continue binding other functions
+    }
+  }
+
+  return boundMethods
 }
 
-let nativeAskar: NativeMethods | undefined = undefined
+let nativeAskar: NativeMethods | undefined
 export const getNativeAskar = () => {
   if (!nativeAskar) nativeAskar = getLibrary() as unknown as NativeMethods
   return nativeAskar

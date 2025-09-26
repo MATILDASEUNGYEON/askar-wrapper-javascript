@@ -25,10 +25,19 @@ export type NativeLogCallback = (
   line: number
 ) => void
 
+export type NativeEnabledCallback = (
+  context: unknown,
+  level: number
+) => number
+
+export type NativeFlushCallback = (
+  context: unknown
+) => void
+
 export type SetCustomLoggerOptions = {
   logLevel: LogLevel
-  flush?: boolean
-  enabled?: boolean
+  flush?: NativeFlushCallback | boolean
+  enabled?: NativeEnabledCallback | boolean
   logger: NativeLogCallback
 }
 export type SetMaxLogLevelOptions = { logLevel: number }
@@ -162,7 +171,7 @@ export type KeyFromSeedOptions = {
   method: string
 }
 export type KeyGenerateOptions = {
-  algorithm: KeyAlgorithm
+  algorithm: KeyAlgorithm | (string & {})
   keyBackend?: KeyBackend
   ephemeral: boolean
 }
@@ -335,6 +344,17 @@ export type StoreSetDefaultProfileOptions = {
   storeHandle: StoreHandle
   profile: string
 }
+export type StoreRenameProfileOptions = {
+  storeHandle: StoreHandle
+  fromProfile: string
+  toProfile: string
+}
+export type StoreCopyProfileOptions = {
+  fromHandle: StoreHandle
+  toHandle: StoreHandle
+  fromProfile: string
+  toProfile: string
+}
 
 export type MigrateIndySdkOptions = {
   specUri: string
@@ -426,6 +446,8 @@ export type Askar = {
   storeProvision(options: StoreProvisionOptions): Promise<StoreHandle>
   storeRekey(options: StoreRekeyOptions): Promise<void>
   storeRemove(options: StoreRemoveOptions): Promise<number>
+  storeRenameProfile(options: StoreRenameProfileOptions): Promise<number>
+  storeCopyProfile(options: StoreCopyProfileOptions): Promise<number>
   storeRemoveProfile(options: StoreRemoveProfileOptions): Promise<number>
   storeSetDefaultProfile(options: StoreSetDefaultProfileOptions): Promise<void>
 

@@ -21,3 +21,20 @@ export const setup = () => {
 }
 
 export const base64url = (str: string) => Buffer.from(str).toString('base64url')
+
+// Execute setup when this file is run directly
+if (require.main === module) {
+  console.log('Initializing Askar...')
+  setup()
+  console.log('Askar initialized successfully!')
+  
+  // Test the setupWallet function
+  setupWallet().then(store => {
+    console.log('Test wallet created successfully!')
+    return store.close()
+  }).then(() => {
+    console.log('Test wallet closed successfully!')
+  }).catch(error => {
+    console.error('Error during wallet setup:', error)
+  })
+}

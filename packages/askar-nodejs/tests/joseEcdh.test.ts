@@ -271,7 +271,7 @@ describe('jose ecdh', () => {
 
     const encryptedKey = derived.wrapKey({ other: cek }).ciphertextWithTag
     deepStrictEqual(
-      encryptedKey,
+      new Uint8Array(encryptedKey),
       Uint8Array.from(
         Buffer.from(
           'pOMVA9_PtoRe7xXW1139NzzN1UhiFoio8lGto9cf0t8PyU-sjNXH8-LIRLycq8CHJQbDwvQeU1cSl55cQ0hGezJu2N9IY0QN',
