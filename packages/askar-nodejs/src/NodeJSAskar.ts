@@ -77,22 +77,22 @@ import type {
   StoreRemoveOptions,
   StoreRemoveProfileOptions,
   StoreSetDefaultProfileOptions,
-} from '@openwallet-foundation/askar-shared'
-import { IKoffiCType, out, sizeof } from 'koffi'
+} from "@openwallet-foundation/askar-shared";
+import { IKoffiCType, out, sizeof } from "koffi";
 
 // Local type definitions for missing exports
 type StoreRenameProfileOptions = {
-  storeHandle: any // Will accept both StoreHandle and number
-  fromProfile: string
-  toProfile: string
-}
+  storeHandle: any; // Will accept both StoreHandle and number
+  fromProfile: string;
+  toProfile: string;
+};
 
 type StoreCopyProfileOptions = {
-  fromHandle: any // Will accept both StoreHandle and number
-  toHandle: any // Will accept both StoreHandle and number
-  fromProfile: string
-  toProfile?: string
-}
+  fromHandle: any; // Will accept both StoreHandle and number
+  toHandle: any; // Will accept both StoreHandle and number
+  fromProfile: string;
+  toProfile?: string;
+};
 
 import {
   AeadParams,
@@ -104,14 +104,14 @@ import {
   SessionHandle,
   StoreHandle,
   handleInvalidNullResponse,
-} from '@openwallet-foundation/askar-shared'
+} from "@openwallet-foundation/askar-shared";
 import type {
   ByteBufferType,
   EncryptedBufferType,
   NativeCallback,
   NativeCallbackWithResponse,
   SecretBufferType,
-} from './ffi'
+} from "./ffi";
 import {
   FFI_INT8,
   FFI_INT32,
@@ -126,25 +126,26 @@ import {
   FFI_STORE_HANDLE,
   FFI_STRING_LIST_HANDLE,
   FFI_SCAN_HANDLE,
-} from './ffi/primitives'
+} from "./ffi/primitives";
 import {
   deallocateCallbackBuffer,
   serializeArguments,
-} from './ffi'
+  Cb_StoreHandle,
+} from "./ffi";
 import {
   toNativeCallback,
   toNativeCallbackWithResponse,
   toNativeLogCallback,
   toVoidPointerCallback,
   createNativeCallback,
-} from './ffi/callback'
+} from "./ffi/callback";
 import {
   encryptedBufferStructToClass,
   secretBufferToBuffer,
   byteBufferToBuffer,
   uint8arrayToByteBufferStruct,
   uint8arrayToByteBufferI64,
-} from './ffi/conversion'
+} from "./ffi/conversion";
 import {
   allocatePointer,
   allocateStringPtr,
@@ -158,15 +159,15 @@ import {
   allocateEntryListHandle,
   allocateKeyEntryListHandle,
   allocateStringListHandle,
-} from './ffi/alloc'
-import { 
-  SecretBufferStruct, 
-  EncryptedBufferStruct, 
+} from "./ffi/alloc";
+import {
+  SecretBufferStruct,
+  EncryptedBufferStruct,
   AeadParamsStruct,
-  ByteBufferStruct
-} from './ffi/structures'
-import { getNativeAskar } from './library'
-import koffi from 'koffi'
+  ByteBufferStruct,
+} from "./ffi/structures";
+import { getNativeAskar } from "./library";
+import koffi from "koffi";
 import {
   // handleReturnPointer,
   // handleNullableReturnPointer,
@@ -182,204 +183,227 @@ import {
   createByteBufferStructs,
   convertToByteBufferStructs,
   convertToUint8ArrayOrNull,
-  createOptionalByteBufferStructs
-} from './utils'
+  createOptionalByteBufferStructs,
+} from "./utils";
 function isNullPtr(p: unknown): boolean {
-  return p == null
+  return p == null;
 }
 function handleNullableReturnPointer<Return>(ptr: unknown): Return | null {
-  if (isNullPtr(ptr)) return null
-  return (ptr as unknown) as Return
+  if (isNullPtr(ptr)) return null;
+  return ptr as unknown as Return;
 }
 
 function handleReturnPointer<Return>(ptr: unknown): Return {
   if (isNullPtr(ptr)) {
-    throw AskarError.customError({ message: 'Unexpected null pointer' })
+    throw AskarError.customError({ message: "Unexpected null pointer" });
   }
-  return (ptr as unknown) as Return
+  return ptr as unknown as Return;
 }
 
 // Koffi 방식의 메모리에서 값을 읽는 함수들
 function readPointerValue<T>(buffer: Buffer, type: any): T {
-  return koffi.decode(buffer, type) as T
+  return koffi.decode(buffer, type) as T;
 }
 
 function readStringFromBuffer(buffer: Buffer): string {
-  if (!buffer || buffer.length < 8) { // 64비트 시스템에서 포인터는 8바이트
-    console.error('readStringFromBuffer received an invalid buffer.');
-    return '';
+  if (!buffer || buffer.length < 8) {
+    // 64비트 시스템에서 포인터는 8바이트
+    console.error("readStringFromBuffer received an invalid buffer.");
+    return "";
   }
 
   try {
     const address = buffer.readBigUInt64LE(0);
-    console.log('Read pointer address:', '0x' + address.toString(16));
+    console.log("Read pointer address:", "0x" + address.toString(16));
 
     // C 함수가 null 포인터를 반환했는지 확인합니다. (주소 값이 0)
     if (address === BigInt(0)) {
-      console.warn('The native function returned a null pointer.');
-      return '';
+      console.warn("The native function returned a null pointer.");
+      return "";
     }
 
     // 2단계: 주소 값을 koffi가 이해하는 포인터 타입으로 변환합니다.
-    const stringPointer = koffi.as(Number(address), 'char*');
+    const stringPointer = koffi.as(Number(address), "char*");
 
     // 3단계: 포인터를 사용해 실제 문자열로 디코딩합니다.
-    const result = koffi.decode(stringPointer, 'string');
-    console.log('Successfully decoded final string:', result);
+    const result = koffi.decode(stringPointer, "string");
+    console.log("Successfully decoded final string:", result);
 
     // 4단계: ★★★ 포인터를 사용해 C에서 할당한 메모리를 해제합니다. ★★★
     // 예: this.nativeAskar.askar_string_free(stringPointer);
     // 이 함수가 실제로 존재하고 라이브러리에 맞게 호출해야 합니다.
 
     return result as string;
-
   } catch (error) {
-    console.error('Failed to read string from buffer:', error);
-    return '';
+    console.error("Failed to read string from buffer:", error);
+    return "";
   }
 }
 
 function readInt32FromBuffer(buffer: Buffer): number {
-  return koffi.decode(buffer, FFI_INT32) as number
+  return koffi.decode(buffer, FFI_INT32) as number;
 }
 
 function readInt8FromBuffer(buffer: Buffer): number {
-  return koffi.decode(buffer, FFI_INT8) as number
+  return koffi.decode(buffer, FFI_INT8) as number;
 }
 
 export class NodeJSAskar implements Askar {
-  private promisify = async (method: (nativeCallbackPtr: koffi.IKoffiRegisteredCallback, id: number) => number): Promise<void> => {
+  private promisify = async (
+    method: (
+      nativeCallbackPtr: koffi.IKoffiRegisteredCallback,
+      id: number
+    ) => number
+  ): Promise<void> => {
     return new Promise((resolve, reject) => {
       const cb: NativeCallback = (id, errorCode) => {
-        deallocateCallbackBuffer(id)
+        deallocateCallbackBuffer(id);
 
         try {
-          this.handleError(errorCode)
+          this.handleError(errorCode);
         } catch (e) {
-          reject(e)
+          reject(e);
         }
 
-        resolve()
-      }
-      const { nativeCallback, id } = toNativeCallback(cb)
-      method(nativeCallback, +id)
-    })
-  }
+        resolve();
+      };
+      const { nativeCallback, id } = toNativeCallback(cb);
+      method(nativeCallback, Number(id));
+    });
+  };
 
   private promisifyWithResponse = async <Return, Response = string>(
-    method: (nativeCallbackWithResponsePtr: koffi.IKoffiRegisteredCallback, id: number) => number,
+    method: (
+      nativeCallbackWithResponsePtr: koffi.IKoffiRegisteredCallback,
+      id: number
+    ) => number,
     responseFfiType = FFI_STRING
   ): Promise<Return | null> => {
     return new Promise((resolve, reject) => {
-      const cb: NativeCallbackWithResponse<Response> = (id, errorCode, response) => {
-        deallocateCallbackBuffer(id)
+      const cb: NativeCallbackWithResponse<Response> = (
+        id,
+        errorCode,
+        response
+      ) => {
+        deallocateCallbackBuffer(id);
 
         if (errorCode !== 0) {
-          const error = this.getAskarError(errorCode)
-          reject(error)
-          return
+          const error = this.getAskarError(errorCode);
+          reject(error);
+          return;
         }
 
-
-        if (typeof response === 'string') {
+        if (typeof response === "string") {
           if (responseFfiType === FFI_STRING) {
-            resolve(response as unknown as Return)
-            return
+            resolve(response as unknown as Return);
+            return;
           }
           try {
-            resolve(JSON.parse(response) as Return)
-            return
+            resolve(JSON.parse(response) as Return);
+            return;
           } catch (error) {
-            reject(error)
-            return
+            reject(error);
+            return;
           }
-        } else if (typeof response === 'number') {
-          resolve(response as unknown as Return)
-          return
+        } else if (typeof response === "number") {
+          resolve(response as unknown as Return);
+          return;
         } else if (response instanceof Buffer) {
           try {
             // koffi buffer may represent a null pointer
-            if (typeof (response as any).address === 'function' && (response as any).address() === 0) {
-              resolve(null)
-              return
+            if (
+              typeof (response as any).address === "function" &&
+              (response as any).address() === 0
+            ) {
+              resolve(null);
+              return;
             }
           } catch (_) {
             // ignore address access errors
           }
-          resolve(response as unknown as Return)
-          return
+          resolve(response as unknown as Return);
+          return;
         } else if (response === null) {
           // Handle null responses
-          resolve(null as unknown as Return)
-          return
-        } else if (typeof response === 'object' && response !== null) {
+          resolve(null as unknown as Return);
+          return;
+        } else if (typeof response === "object" && response !== null) {
           // Handle object responses (like handles)
-          resolve(response as unknown as Return)
-          return
+          resolve(response as unknown as Return);
+          return;
         }
 
-        reject(AskarError.customError({ message: `could not parse return type properly (type: ${typeof response})` }))
-      }
-      
-      const { nativeCallback, id } = toNativeCallbackWithResponse(cb, responseFfiType)
+        reject(
+          AskarError.customError({
+            message: `could not parse return type properly (type: ${typeof response})`,
+          })
+        );
+      };
+
+      const { nativeCallback, id } = toNativeCallbackWithResponse(
+        cb,
+        responseFfiType
+      );
       // console.log('[promisifyWithResponse] Calling native method with callback id:', id)
-      
-      const errorCode = method(nativeCallback, +id)
+
+      const errorCode = method(nativeCallback, Number(id));
       // console.log('[promisifyWithResponse] Native method returned error code:', errorCode)
-      
+
       // Handle synchronous errors immediately
       if (errorCode !== 0) {
-        deallocateCallbackBuffer(+id)
+        deallocateCallbackBuffer(Number(id));
         try {
-          this.handleError(errorCode)
+          this.handleError(errorCode);
         } catch (error) {
-          reject(error)
+          reject(error);
         }
-        return
+        return;
       }
-      
+
       // Add timeout to detect if callback is never called
       // setTimeout(() => {
       //   // console.log('[promisifyWithResponse] Timeout reached - callback was never called')
       //   reject(new Error('Callback timeout - native function did not call the callback'))
       // }, 5000)
-    })
-  }
-
+    });
+  };
 
   // Generic promisify function for any callback signature
   private promisifyWithCustomResponse = async <Return, Args extends any[]>(
-    method: (nativeCallbackPtr: koffi.IKoffiRegisteredCallback, id: number) => number,
+    method: (
+      nativeCallbackPtr: koffi.IKoffiRegisteredCallback,
+      id: number
+    ) => number,
     ffiTypes: any[],
     responseIndex: number = 0 // Which argument is the response (0-based index)
   ): Promise<Return | null> => {
     return new Promise((resolve, reject) => {
       const cb = (id: number, errorCode: number, ...args: Args) => {
-        deallocateCallbackBuffer(id)
+        deallocateCallbackBuffer(id);
 
         if (errorCode !== 0) {
-          const error = this.getAskarError(errorCode)
-          reject(error)
-          return
+          const error = this.getAskarError(errorCode);
+          reject(error);
+          return;
         }
 
         // Return the response at the specified index
-        const response = args[responseIndex]
-        resolve(response as unknown as Return)
-      }
-      
-      const { nativeCallback, id } = createNativeCallback(cb, ffiTypes)
-      
-      const errorCode = method(nativeCallback, +id)
-      
+        const response = args[responseIndex];
+        resolve(response as unknown as Return);
+      };
+
+      const { nativeCallback, id } = createNativeCallback(cb, ffiTypes);
+
+      const errorCode = method(nativeCallback, Number(id));
+
       if (errorCode !== 0) {
-        deallocateCallbackBuffer(id)
-        const error = this.getAskarError(errorCode)
-        reject(error)
-        return
+        deallocateCallbackBuffer(id);
+        const error = this.getAskarError(errorCode);
+        reject(error);
+        return;
       }
-    })
-  }
+    });
+  };
 
   /**
    * Fetch the error from the native library and throw it as a JS error
@@ -392,319 +416,429 @@ export class NodeJSAskar implements Askar {
    *
    */
   private getAskarError(errorCode: number): AskarError {
-    const error = this.getCurrentError()
+    const error = this.getCurrentError();
     if (error.code !== errorCode) {
       return new AskarError({
         code: errorCode,
         message:
-          'Error details have already been overwritten on the native side, unable to retrieve error message for the error',
-      })
+          "Error details have already been overwritten on the native side, unable to retrieve error message for the error",
+      });
     }
 
-    return new AskarError(error)
+    return new AskarError(error);
   }
 
   private handleError(errorCode: number) {
-    if (errorCode === 0) return
+    if (errorCode === 0) return;
 
-    throw this.getAskarError(errorCode)
+    throw this.getAskarError(errorCode);
   }
 
   public get nativeAskar() {
-    return getNativeAskar()
+    return getNativeAskar();
   }
 
   public version(): string {
-    return this.nativeAskar.askar_version()
+    return this.nativeAskar.askar_version();
   }
 
   public getCurrentError(): AskarErrorObject {
     // Koffi에서 output 파라미터는 배열로 전달합니다
-    const errorOutput = [null] // string output을 위한 배열
-    this.nativeAskar.askar_get_current_error(errorOutput)
-    const serializedError = errorOutput[0] // 배열에서 결과 값 추출
+    const errorOutput = [null]; // string output을 위한 배열
+    this.nativeAskar.askar_get_current_error(errorOutput);
+    const serializedError = errorOutput[0]; // 배열에서 결과 값 추출
 
     if (!serializedError) {
-      return { code: 0, message: null }
+      return { code: 0, message: null };
     }
 
-    return JSON.parse(serializedError) as AskarErrorObject
+    return JSON.parse(serializedError) as AskarErrorObject;
   }
 
   public keyGenerate(options: KeyGenerateOptions): LocalKeyHandle {
-    const { algorithm, ephemeral, keyBackend } = serializeArguments(options)
-    const handleOutput = [null]
+    const { algorithm, ephemeral, keyBackend } = serializeArguments(options);
+    const handleOutput = [null];
 
     const errorCode = this.nativeAskar.askar_key_generate(
-      algorithm as string, 
-      keyBackend as string, 
-      ephemeral as number, 
+      algorithm as string,
+      keyBackend as string,
+      ephemeral as number,
       handleOutput
-    )
-    this.handleError(errorCode)
+    );
+    this.handleError(errorCode);
 
-    return createLocalKeyHandleFromOutput(handleOutput, 'Failed to generate key: null handle returned')
+    return createLocalKeyHandleFromOutput(
+      handleOutput,
+      "Failed to generate key: null handle returned"
+    );
   }
 
   public keyFree(options: KeyFreeOptions): void {
-    const { localKeyHandle } = serializeArguments(options)
-    this.nativeAskar.askar_key_free(localKeyHandle)
+    const { localKeyHandle } = serializeArguments(options);
+    this.nativeAskar.askar_key_free(localKeyHandle);
   }
 
   public keyFromSeed(options: KeyFromSeedOptions): LocalKeyHandle {
-    const { algorithm, method, seed } = serializeArguments(options)
-    const handleOutput = [null]
+    const { algorithm, method, seed } = serializeArguments(options);
+    const handleOutput = [null];
 
     // seed는 이미 serialize에서 ByteBufferStruct로 변환됨
-    const errorCode = this.nativeAskar.askar_key_from_seed(algorithm, seed as any, method, handleOutput)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_from_seed(
+      algorithm,
+      seed as any,
+      method,
+      handleOutput
+    );
+    this.handleError(errorCode);
 
-    return createLocalKeyHandleFromOutput(handleOutput, 'Failed to create key from seed: null handle returned')
+    return createLocalKeyHandleFromOutput(
+      handleOutput,
+      "Failed to create key from seed: null handle returned"
+    );
   }
 
   public keyFromJwk(options: KeyFromJwkOptions): LocalKeyHandle {
-    const { jwk } = serializeArguments(options)
-    const handleOutput = [null]
+    const { jwk } = serializeArguments(options);
+    const handleOutput = [null];
 
     // jwk는 이미 serialize에서 ByteBufferStruct로 변환됨
-    const errorCode = this.nativeAskar.askar_key_from_jwk(jwk as any, handleOutput)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_from_jwk(
+      jwk as any,
+      handleOutput
+    );
+    this.handleError(errorCode);
 
-    return createLocalKeyHandleFromOutput(handleOutput, 'Failed to create key from JWK: null handle returned')
+    return createLocalKeyHandleFromOutput(
+      handleOutput,
+      "Failed to create key from JWK: null handle returned"
+    );
   }
 
-  public keyFromPublicBytes(options: KeyFromPublicBytesOptions): LocalKeyHandle {
-    const { publicKey, algorithm } = serializeArguments(options)
-    const handleOutput = [null]
+  public keyFromPublicBytes(
+    options: KeyFromPublicBytesOptions
+  ): LocalKeyHandle {
+    const { publicKey, algorithm } = serializeArguments(options);
+    const handleOutput = [null];
 
-    const errorCode = this.nativeAskar.askar_key_from_public_bytes(algorithm, publicKey as any, handleOutput)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_from_public_bytes(
+      algorithm,
+      publicKey as any,
+      handleOutput
+    );
+    this.handleError(errorCode);
 
-    return createLocalKeyHandleFromOutput(handleOutput, 'Failed to create key from public bytes: null handle returned')
+    return createLocalKeyHandleFromOutput(
+      handleOutput,
+      "Failed to create key from public bytes: null handle returned"
+    );
   }
 
   public keyGetPublicBytes(options: KeyGetPublicBytesOptions): Uint8Array {
-    const { localKeyHandle } = serializeArguments(options)
+    const { localKeyHandle } = serializeArguments(options);
     return processSecretBufferResult(
       this.nativeAskar,
-      'askar_key_get_public_bytes',
+      "askar_key_get_public_bytes",
       [localKeyHandle],
       this.handleError.bind(this)
-    )
+    );
   }
 
-  public keyFromSecretBytes(options: KeyFromSecretBytesOptions): LocalKeyHandle {
-    const { secretKey, algorithm } = serializeArguments(options)
-    const handleOutput = [null]
+  public keyFromSecretBytes(
+    options: KeyFromSecretBytesOptions
+  ): LocalKeyHandle {
+    const { secretKey, algorithm } = serializeArguments(options);
+    const handleOutput = [null];
 
-    const errorCode = this.nativeAskar.askar_key_from_secret_bytes(algorithm, secretKey as any, handleOutput)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_from_secret_bytes(
+      algorithm,
+      secretKey as any,
+      handleOutput
+    );
+    this.handleError(errorCode);
 
-    return createLocalKeyHandleFromOutput(handleOutput, 'Failed to create key from secret bytes: null handle returned')
+    return createLocalKeyHandleFromOutput(
+      handleOutput,
+      "Failed to create key from secret bytes: null handle returned"
+    );
   }
 
   public keyGetSecretBytes(options: KeyGetSecretBytesOptions): Uint8Array {
-    const { localKeyHandle } = serializeArguments(options)
+    const { localKeyHandle } = serializeArguments(options);
     return processSecretBufferResult(
       this.nativeAskar,
-      'askar_key_get_secret_bytes',
+      "askar_key_get_secret_bytes",
       [localKeyHandle],
       this.handleError.bind(this)
-    )
+    );
   }
-  
+
   public keyConvert(options: KeyConvertOptions): LocalKeyHandle {
-    const { localKeyHandle, algorithm } = serializeArguments(options)
-    const handleOutput = [null]
+    const { localKeyHandle, algorithm } = serializeArguments(options);
+    const handleOutput = [null];
 
-    const errorCode = this.nativeAskar.askar_key_convert(localKeyHandle, algorithm, handleOutput)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_convert(
+      localKeyHandle,
+      algorithm,
+      handleOutput
+    );
+    this.handleError(errorCode);
 
-    return createLocalKeyHandleFromOutput(handleOutput, 'Failed to convert key: null handle returned')
+    return createLocalKeyHandleFromOutput(
+      handleOutput,
+      "Failed to convert key: null handle returned"
+    );
   }
-  
-  public keyFromKeyExchange(options: KeyFromKeyExchangeOptions): LocalKeyHandle {
-    const { algorithm, skHandle, pkHandle } = serializeArguments(options)
-    const handleOutput = [null]
 
-    const errorCode = this.nativeAskar.askar_key_from_key_exchange(algorithm, skHandle, pkHandle, handleOutput)
-    this.handleError(errorCode)
+  public keyFromKeyExchange(
+    options: KeyFromKeyExchangeOptions
+  ): LocalKeyHandle {
+    const { algorithm, skHandle, pkHandle } = serializeArguments(options);
+    const handleOutput = [null];
 
-    return createLocalKeyHandleFromOutput(handleOutput, 'Failed to create key from key exchange: null handle returned')
+    const errorCode = this.nativeAskar.askar_key_from_key_exchange(
+      algorithm,
+      skHandle,
+      pkHandle,
+      handleOutput
+    );
+    this.handleError(errorCode);
+
+    return createLocalKeyHandleFromOutput(
+      handleOutput,
+      "Failed to create key from key exchange: null handle returned"
+    );
   }
 
   public keyGetAlgorithm(options: KeyGetAlgorithmOptions): string {
-    const { localKeyHandle } = serializeArguments(options)
-    const stringOutput = [null]
+    const { localKeyHandle } = serializeArguments(options);
+    const stringOutput = [null];
 
-    const errorCode = this.nativeAskar.askar_key_get_algorithm(localKeyHandle, stringOutput)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_get_algorithm(
+      localKeyHandle,
+      stringOutput
+    );
+    this.handleError(errorCode);
 
-    return getStringFromOutput(stringOutput, 'Failed to get key algorithm: null result returned')
+    return getStringFromOutput(
+      stringOutput,
+      "Failed to get key algorithm: null result returned"
+    );
   }
 
   public keyGetEphemeral(options: KeyGetEphemeralOptions): number {
-    const { localKeyHandle } = serializeArguments(options)
+    const { localKeyHandle } = serializeArguments(options);
     return processInt8Result(
       this.nativeAskar,
-      'askar_key_get_ephemeral',
+      "askar_key_get_ephemeral",
       [localKeyHandle],
       this.handleError.bind(this)
-    )
+    );
   }
 
   public keyGetJwkPublic(options: KeyGetJwkPublicOptions): string {
-    const { localKeyHandle, algorithm } = serializeArguments(options)
-    const stringOutput = [null]
+    const { localKeyHandle, algorithm } = serializeArguments(options);
+    const stringOutput = [null];
 
-    const errorCode = this.nativeAskar.askar_key_get_jwk_public(localKeyHandle, algorithm, stringOutput)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_get_jwk_public(
+      localKeyHandle,
+      algorithm,
+      stringOutput
+    );
+    this.handleError(errorCode);
 
-    return getStringFromOutput(stringOutput, 'Failed to get JWK public key: null result returned')
+    return getStringFromOutput(
+      stringOutput,
+      "Failed to get JWK public key: null result returned"
+    );
   }
 
   public keyGetJwkSecret(options: KeyGetJwkSecretOptions): Uint8Array {
-    const { localKeyHandle } = serializeArguments(options)
+    const { localKeyHandle } = serializeArguments(options);
     return processSecretBufferResult(
       this.nativeAskar,
-      'askar_key_get_jwk_secret',
+      "askar_key_get_jwk_secret",
       [localKeyHandle],
       this.handleError.bind(this)
-    )
+    );
   }
 
   public keyGetJwkThumbprint(options: KeyGetJwkThumbprintOptions): string {
-    const { localKeyHandle, algorithm } = serializeArguments(options)
-    const stringOutput = [null]
+    const { localKeyHandle, algorithm } = serializeArguments(options);
+    const stringOutput = [null];
 
-    const errorCode = this.nativeAskar.askar_key_get_jwk_thumbprint(localKeyHandle, algorithm, stringOutput)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_get_jwk_thumbprint(
+      localKeyHandle,
+      algorithm,
+      stringOutput
+    );
+    this.handleError(errorCode);
 
-    const result = stringOutput[0]
+    const result = stringOutput[0];
     if (!result) {
-      throw new Error('Failed to get key algorithm: null result returned')
+      throw new Error("Failed to get key algorithm: null result returned");
     }
-    return result
+    return result;
   }
 
   public keyAeadRandomNonce(options: KeyAeadRandomNonceOptions): Uint8Array {
-    const { localKeyHandle } = serializeArguments(options)
-    const ret = allocateSecretBuffer()
+    const { localKeyHandle } = serializeArguments(options);
+    const ret = allocateSecretBuffer();
 
-    const errorCode = this.nativeAskar.askar_key_aead_random_nonce(localKeyHandle, ret as any)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_aead_random_nonce(
+      localKeyHandle,
+      ret as any
+    );
+    this.handleError(errorCode);
 
-    const secretBuffer = readPointerValue<SecretBufferType>(ret, SecretBufferStruct)
-    return new Uint8Array(secretBufferToBuffer(secretBuffer))
+    const secretBuffer = readPointerValue<SecretBufferType>(
+      ret,
+      SecretBufferStruct
+    );
+    return new Uint8Array(secretBufferToBuffer(secretBuffer));
   }
 
   public keyAeadGetParams(options: KeyAeadGetParamsOptions): AeadParams {
-    const { localKeyHandle } = serializeArguments(options)
-    const ret = allocateAeadParams()
+    const { localKeyHandle } = serializeArguments(options);
+    const ret = allocateAeadParams();
 
-    const errorCode = this.nativeAskar.askar_key_aead_get_params(localKeyHandle, ret)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_aead_get_params(
+      localKeyHandle,
+      ret
+    );
+    this.handleError(errorCode);
 
-    const aeadParams = readPointerValue<AeadParamsOptions>(ret, AeadParamsStruct)
-    return new AeadParams(aeadParams)
+    const aeadParams = readPointerValue<AeadParamsOptions>(
+      ret,
+      AeadParamsStruct
+    );
+    return new AeadParams(aeadParams);
   }
 
-   public keyAeadGetPadding(options: KeyAeadGetPaddingOptions): number {
-    const { localKeyHandle, msgLen } = serializeArguments(options)
-    const ret = allocateInt32Ptr()
+  public keyAeadGetPadding(options: KeyAeadGetPaddingOptions): number {
+    const { localKeyHandle, msgLen } = serializeArguments(options);
+    const ret = allocateInt32Ptr();
 
-    const errorCode = this.nativeAskar.askar_key_aead_get_padding(localKeyHandle as any, msgLen as number, ret)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_aead_get_padding(
+      localKeyHandle as any,
+      msgLen as number,
+      ret
+    );
+    this.handleError(errorCode);
 
-    return readInt32FromBuffer(ret)
+    return readInt32FromBuffer(ret);
   }
 
   public keyAeadEncrypt(options: KeyAeadEncryptOptions): EncryptedBuffer {
-    const { localKeyHandle } = serializeArguments({ localKeyHandle: options.localKeyHandle })
-    const { message, nonce, aad } = options
+    const { localKeyHandle } = serializeArguments({
+      localKeyHandle: options.localKeyHandle,
+    });
+    const { message, nonce, aad } = options;
 
     const structs = convertToByteBufferStructs({
       message: message,
       nonce: nonce,
-      aad: aad
-    })
-    
+      aad: aad,
+    });
+
     return processEncryptedBufferResult(
       this.nativeAskar,
-      'askar_key_aead_encrypt',
+      "askar_key_aead_encrypt",
       [localKeyHandle, structs.message, structs.nonce, structs.aad],
       this.handleError.bind(this)
-    )
+    );
   }
 
   public keyAeadDecrypt(options: KeyAeadDecryptOptions): Uint8Array {
-    const { localKeyHandle } = serializeArguments({ localKeyHandle: options.localKeyHandle })
-    const { ciphertext, nonce, tag, aad } = options
+    const { localKeyHandle } = serializeArguments({
+      localKeyHandle: options.localKeyHandle,
+    });
+    const { ciphertext, nonce, tag, aad } = options;
 
     const structs = convertToByteBufferStructs({
       ciphertext: ciphertext,
       nonce: nonce,
       tag: tag,
-      aad: aad
-    })
+      aad: aad,
+    });
 
     return processSecretBufferResult(
       this.nativeAskar,
-      'askar_key_aead_decrypt',
-      [localKeyHandle, structs.ciphertext, structs.nonce, structs.tag, structs.aad],
+      "askar_key_aead_decrypt",
+      [
+        localKeyHandle,
+        structs.ciphertext,
+        structs.nonce,
+        structs.tag,
+        structs.aad,
+      ],
       this.handleError.bind(this)
-    )
+    );
   }
 
   public keySignMessage(options: KeySignMessageOptions): Uint8Array {
-    const { localKeyHandle } = serializeArguments({ localKeyHandle: options.localKeyHandle })
-    const { message, sigType } = options
-    
-    const messageBuffer = convertMessageToUint8Array(message, 'keySignMessage')
-    const messageStruct = uint8arrayToByteBufferStruct(messageBuffer)
-    
+    const { localKeyHandle } = serializeArguments({
+      localKeyHandle: options.localKeyHandle,
+    });
+    const { message, sigType } = options;
+
+    const messageBuffer = convertMessageToUint8Array(message, "keySignMessage");
+    const messageStruct = uint8arrayToByteBufferStruct(messageBuffer);
+
     return processSecretBufferResult(
       this.nativeAskar,
-      'askar_key_sign_message',
-      [localKeyHandle, messageStruct, (sigType ? sigType.toString() : null) as any],
+      "askar_key_sign_message",
+      [
+        localKeyHandle,
+        messageStruct,
+        (sigType ? sigType.toString() : null) as any,
+      ],
       this.handleError.bind(this)
-    )
+    );
   }
-  
+
   public keyVerifySignature(options: KeyVerifySignatureOptions): boolean {
-    const { localKeyHandle } = serializeArguments({ localKeyHandle: options.localKeyHandle })
-    const { message, signature, sigType } = options
-    
-    console.log('keyVerifySignature debug:', {
+    const { localKeyHandle } = serializeArguments({
+      localKeyHandle: options.localKeyHandle,
+    });
+    const { message, signature, sigType } = options;
+
+    console.log("keyVerifySignature debug:", {
       message: message,
       messageType: typeof message,
       signature: signature,
       signatureType: typeof signature,
       sigType: sigType,
-      sigTypeType: typeof sigType
-    })
-    
-    const messageBuffer = toUint8Array(message)
-    const signatureBuffer = toUint8Array(signature)
+      sigTypeType: typeof sigType,
+    });
 
-    const messageStruct = uint8arrayToByteBufferStruct(messageBuffer)
-    const signatureStruct = uint8arrayToByteBufferStruct(signatureBuffer)
-    
+    const messageBuffer = toUint8Array(message);
+    const signatureBuffer = toUint8Array(signature);
+
+    const messageStruct = uint8arrayToByteBufferStruct(messageBuffer);
+    const signatureStruct = uint8arrayToByteBufferStruct(signatureBuffer);
+
     const result = processInt8Result(
       this.nativeAskar,
-      'askar_key_verify_signature',
-      [localKeyHandle, messageStruct as any, signatureStruct as any, (sigType ? sigType.toString() : null) as any],
+      "askar_key_verify_signature",
+      [
+        localKeyHandle,
+        messageStruct as any,
+        signatureStruct as any,
+        (sigType ? sigType.toString() : null) as any,
+      ],
       this.handleError.bind(this)
-    )
-    
-    return Boolean(result)
+    );
+
+    return Boolean(result);
   }
 
   public keyWrapKey(options: KeyWrapKeyOptions): EncryptedBuffer {
-    const { localKeyHandle } = serializeArguments({ localKeyHandle: options.localKeyHandle })
-    const { nonce, other } = options
-    
-    console.log('keyWrapKey debug:', {
+    const { localKeyHandle } = serializeArguments({
+      localKeyHandle: options.localKeyHandle,
+    });
+    const { nonce, other } = options;
+
+    console.log("keyWrapKey debug:", {
       nonce: nonce,
       nonceType: typeof nonce,
       nonceConstructor: (nonce as any)?.constructor?.name,
@@ -713,160 +847,183 @@ export class NodeJSAskar implements Askar {
       otherType: typeof other,
       otherConstructor: (other as any)?.constructor?.name,
       localKeyHandle: localKeyHandle,
-      localKeyHandleType: typeof localKeyHandle
-    })
-    
-    const nonceBuffer = toUint8Array(nonce)
-    const otherHandle = extractKeyHandle(other)
+      localKeyHandleType: typeof localKeyHandle,
+    });
 
-    console.log('keyWrapKey processed:', {
+    const nonceBuffer = toUint8Array(nonce);
+    const otherHandle = extractKeyHandle(other);
+
+    console.log("keyWrapKey processed:", {
       nonceBufferLength: nonceBuffer.length,
       nonceBufferType: typeof nonceBuffer,
-      otherHandle: otherHandle
-    })
+      otherHandle: otherHandle,
+    });
 
-    const nonceStruct = uint8arrayToByteBufferStruct(nonceBuffer)
-    console.log('nonceStruct:', nonceStruct)
+    const nonceStruct = uint8arrayToByteBufferStruct(nonceBuffer);
+    console.log("nonceStruct:", nonceStruct);
 
-    console.log('Before native call:', {
+    console.log("Before native call:", {
       localKeyHandle,
       otherHandle,
-      nonceStruct
-    })
+      nonceStruct,
+    });
 
     return processEncryptedBufferResult(
       this.nativeAskar,
-      'askar_key_wrap_key',
+      "askar_key_wrap_key",
       [localKeyHandle, otherHandle as any, nonceStruct as any],
       this.handleError.bind(this)
-    )
+    );
   }
   public keyUnwrapKey(options: KeyUnwrapKeyOptions): LocalKeyHandle {
-    const { localKeyHandle } = serializeArguments({ localKeyHandle: options.localKeyHandle })
-    const { algorithm, ciphertext, nonce, tag } = options
-    
-    console.log('keyUnwrapKey debug:', {
+    const { localKeyHandle } = serializeArguments({
+      localKeyHandle: options.localKeyHandle,
+    });
+    const { algorithm, ciphertext, nonce, tag } = options;
+
+    console.log("keyUnwrapKey debug:", {
       ciphertext: ciphertext,
       ciphertextType: typeof ciphertext,
       nonce: nonce,
       nonceType: typeof nonce,
       tag: tag,
       tagType: typeof tag,
-      algorithm: algorithm
-    })
-    
-    const handleOutput = [null]
+      algorithm: algorithm,
+    });
+
+    const handleOutput = [null];
 
     // 모든 바이트 데이터를 toUint8Array로 변환
-    const ciphertextBuffer = toUint8Array(ciphertext)
-    const nonceBuffer = toUint8Array(nonce)
-    const tagBuffer = toUint8Array(tag)
+    const ciphertextBuffer = toUint8Array(ciphertext);
+    const nonceBuffer = toUint8Array(nonce);
+    const tagBuffer = toUint8Array(tag);
 
-    const ciphertextStruct = uint8arrayToByteBufferStruct(ciphertextBuffer)
-    const nonceStruct = uint8arrayToByteBufferStruct(nonceBuffer)
-    const tagStruct = uint8arrayToByteBufferStruct(tagBuffer)
+    const ciphertextStruct = uint8arrayToByteBufferStruct(ciphertextBuffer);
+    const nonceStruct = uint8arrayToByteBufferStruct(nonceBuffer);
+    const tagStruct = uint8arrayToByteBufferStruct(tagBuffer);
 
-    const errorCode = this.nativeAskar.askar_key_unwrap_key(localKeyHandle, algorithm, ciphertextStruct as any, nonceStruct as any, tagStruct as any, handleOutput)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_unwrap_key(
+      localKeyHandle,
+      algorithm,
+      ciphertextStruct as any,
+      nonceStruct as any,
+      tagStruct as any,
+      handleOutput
+    );
+    this.handleError(errorCode);
 
-    return createLocalKeyHandleFromOutput(handleOutput, 'Failed to unwrap key: null handle returned')
+    return createLocalKeyHandleFromOutput(
+      handleOutput,
+      "Failed to unwrap key: null handle returned"
+    );
   }
   public keyCryptoBoxRandomNonce(): Uint8Array {
-    const ret:object = allocateSecretBuffer()
+    const ret: object = allocateSecretBuffer();
 
-    const errorCode = this.nativeAskar.askar_key_crypto_box_random_nonce(ret as any)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_crypto_box_random_nonce(
+      ret as any
+    );
+    this.handleError(errorCode);
 
-    const secretBuffer = readPointerValue<SecretBufferType>(ret as Buffer, SecretBufferStruct)
-    return new Uint8Array(secretBufferToBuffer(secretBuffer))
+    const secretBuffer = readPointerValue<SecretBufferType>(
+      ret as Buffer,
+      SecretBufferStruct
+    );
+    return new Uint8Array(secretBufferToBuffer(secretBuffer));
   }
 
   public keyCryptoBox(options: KeyCryptoBoxOptions): Uint8Array {
-    const { nonce, message } = options
-    
-    // recipientKey와 senderKey에서 핸들 추출
-    const recipientKey = extractKeyHandle(options.recipientKey)
-    const senderKey = extractKeyHandle(options.senderKey)
+    const { nonce, message } = options;
 
-    const messageBuffer = toUint8Array(message)
-    const nonceBuffer = toUint8Array(nonce)
-    
-    const messageStruct = uint8arrayToByteBufferStruct(messageBuffer)
-    const nonceStruct = uint8arrayToByteBufferStruct(nonceBuffer)
+    // recipientKey와 senderKey에서 핸들 추출
+    const recipientKey = extractKeyHandle(options.recipientKey);
+    const senderKey = extractKeyHandle(options.senderKey);
+
+    const messageBuffer = toUint8Array(message);
+    const nonceBuffer = toUint8Array(nonce);
+
+    const messageStruct = uint8arrayToByteBufferStruct(messageBuffer);
+    const nonceStruct = uint8arrayToByteBufferStruct(nonceBuffer);
 
     return processSecretBufferResult(
       this.nativeAskar,
-      'askar_key_crypto_box',
+      "askar_key_crypto_box",
       [recipientKey, senderKey, messageStruct as any, nonceStruct as any],
       this.handleError.bind(this)
-    )
-  }  
+    );
+  }
 
   public keyCryptoBoxOpen(options: KeyCryptoBoxOpenOptions): Uint8Array {
-    const { nonce, message } = options
-    
+    const { nonce, message } = options;
+
     // senderKey와 recipientKey에서 핸들 추출
-    const senderKey = extractKeyHandle(options.senderKey)
-    const recipientKey = extractKeyHandle(options.recipientKey)
-    
-    const messageBuffer = toUint8Array(message)
-    const nonceBuffer = toUint8Array(nonce)
-    
-    const messageStruct = uint8arrayToByteBufferStruct(messageBuffer)
-    const nonceStruct = uint8arrayToByteBufferStruct(nonceBuffer)
+    const senderKey = extractKeyHandle(options.senderKey);
+    const recipientKey = extractKeyHandle(options.recipientKey);
+
+    const messageBuffer = toUint8Array(message);
+    const nonceBuffer = toUint8Array(nonce);
+
+    const messageStruct = uint8arrayToByteBufferStruct(messageBuffer);
+    const nonceStruct = uint8arrayToByteBufferStruct(nonceBuffer);
 
     return processSecretBufferResult(
       this.nativeAskar,
-      'askar_key_crypto_box_open',
+      "askar_key_crypto_box_open",
       [recipientKey, senderKey, messageStruct as any, nonceStruct as any],
       this.handleError.bind(this)
-    )
+    );
   }
   public keyCryptoBoxSeal(options: KeyCryptoBoxSealOptions): Uint8Array {
-    const localKeyHandle = extractKeyHandle(options.localKeyHandle)
-    const { message } = options
+    const localKeyHandle = extractKeyHandle(options.localKeyHandle);
+    const { message } = options;
 
-    const messageBuffer = toUint8Array(message)
-    const messageStruct = uint8arrayToByteBufferStruct(messageBuffer)
-    
+    const messageBuffer = toUint8Array(message);
+    const messageStruct = uint8arrayToByteBufferStruct(messageBuffer);
+
     return processSecretBufferResult(
       this.nativeAskar,
-      'askar_key_crypto_box_seal',
+      "askar_key_crypto_box_seal",
       [localKeyHandle as any, messageStruct as any],
       this.handleError.bind(this)
-    )
+    );
   }
-  
-  public keyCryptoBoxSealOpen(options: KeyCryptoBoxSealOpenOptions): Uint8Array {
-    const localKeyHandle = extractKeyHandle(options.localKeyHandle)
-    const { ciphertext } = options
-    
-    const ciphertextBuffer = toUint8Array(ciphertext)
-    const ciphertextStruct = uint8arrayToByteBufferStruct(ciphertextBuffer)
-    
+
+  public keyCryptoBoxSealOpen(
+    options: KeyCryptoBoxSealOpenOptions
+  ): Uint8Array {
+    const localKeyHandle = extractKeyHandle(options.localKeyHandle);
+    const { ciphertext } = options;
+
+    const ciphertextBuffer = toUint8Array(ciphertext);
+    const ciphertextStruct = uint8arrayToByteBufferStruct(ciphertextBuffer);
+
     return processSecretBufferResult(
       this.nativeAskar,
-      'askar_key_crypto_box_seal_open',
+      "askar_key_crypto_box_seal_open",
       [localKeyHandle as any, ciphertextStruct as any],
       this.handleError.bind(this)
-    )
+    );
   }
 
   public keyDeriveEcdhEs(options: KeyDeriveEcdhEsOptions): LocalKeyHandle {
     // serializeArguments를 사용해서 키 핸들 변환
-    const recipientKeyHandle = serializeArguments({ localKeyHandle: options.recipientKey }).localKeyHandle
-    const ephemeralKeyHandle = serializeArguments({ localKeyHandle: options.ephemeralKey }).localKeyHandle
-    
-    const { receive, algorithm, apv, apu, algId } = options
-    const handleOutput = [null]
+    const recipientKeyHandle = serializeArguments({
+      localKeyHandle: options.recipientKey,
+    }).localKeyHandle;
+    const ephemeralKeyHandle = serializeArguments({
+      localKeyHandle: options.ephemeralKey,
+    }).localKeyHandle;
+
+    const { receive, algorithm, apv, apu, algId } = options;
+    const handleOutput = [null];
 
     // 바이트 배열들을 ByteBufferStruct로 변환
-    const algIdStruct = uint8arrayToByteBufferStruct(toUint8Array(algId))
-    const apuStruct = uint8arrayToByteBufferStruct(toUint8Array(apu))
-    const apvStruct = uint8arrayToByteBufferStruct(toUint8Array(apv))
-    
-    const receiveNum = receive ? 1 : 0
-    
+    const algIdStruct = uint8arrayToByteBufferStruct(toUint8Array(algId));
+    const apuStruct = uint8arrayToByteBufferStruct(toUint8Array(apu));
+    const apvStruct = uint8arrayToByteBufferStruct(toUint8Array(apv));
+
+    const receiveNum = receive ? 1 : 0;
+
     const errorCode = this.nativeAskar.askar_key_derive_ecdh_es(
       algorithm,
       ephemeralKeyHandle,
@@ -876,28 +1033,33 @@ export class NodeJSAskar implements Askar {
       apvStruct as any,
       receiveNum,
       handleOutput
-    )
-    this.handleError(errorCode)
+    );
+    this.handleError(errorCode);
 
-    return createLocalKeyHandleFromOutput(handleOutput, 'Failed to derive ECDH-ES key: null handle returned')
+    return createLocalKeyHandleFromOutput(
+      handleOutput,
+      "Failed to derive ECDH-ES key: null handle returned"
+    );
   }
-   public keyDeriveEcdh1pu(options: KeyDeriveEcdh1puOptions): LocalKeyHandle {
-    const { algorithm, receive, algId, apu, apv, ccTag } = options
-    
+  public keyDeriveEcdh1pu(options: KeyDeriveEcdh1puOptions): LocalKeyHandle {
+    const { algorithm, receive, algId, apu, apv, ccTag } = options;
+
     // 네이티브 핸들 값 추출
-    const senderHandleValue = options.senderKey.handle.handle
-    const recipientHandleValue = options.recipientKey.handle.handle
-    const ephemeralHandleValue = options.ephemeralKey.handle.handle
+    const senderHandleValue = options.senderKey.handle.handle;
+    const recipientHandleValue = options.recipientKey.handle.handle;
+    const ephemeralHandleValue = options.ephemeralKey.handle.handle;
 
-    const handleOutput = [null]
-    
+    const handleOutput = [null];
+
     // 바이트 배열들을 ByteBufferStruct로 변환
-    const algIdStruct = uint8arrayToByteBufferStruct(toUint8Array(algId))
-    const apuStruct = uint8arrayToByteBufferStruct(toUint8Array(apu))
-    const apvStruct = uint8arrayToByteBufferStruct(toUint8Array(apv))
-    const ccTagStruct = ccTag ? uint8arrayToByteBufferStruct(toUint8Array(ccTag)) : uint8arrayToByteBufferStruct(new Uint8Array(0))
+    const algIdStruct = uint8arrayToByteBufferStruct(toUint8Array(algId));
+    const apuStruct = uint8arrayToByteBufferStruct(toUint8Array(apu));
+    const apvStruct = uint8arrayToByteBufferStruct(toUint8Array(apv));
+    const ccTagStruct = ccTag
+      ? uint8arrayToByteBufferStruct(toUint8Array(ccTag))
+      : uint8arrayToByteBufferStruct(new Uint8Array(0));
 
-    const receiveNum = receive ? 1 : 0
+    const receiveNum = receive ? 1 : 0;
     const errorCode = this.nativeAskar.askar_key_derive_ecdh_1pu(
       algorithm,
       ephemeralHandleValue as any,
@@ -909,341 +1071,490 @@ export class NodeJSAskar implements Askar {
       ccTagStruct as any,
       receiveNum,
       handleOutput
-    )
-    this.handleError(errorCode)
+    );
+    this.handleError(errorCode);
 
-    return createLocalKeyHandleFromOutput(handleOutput, 'Failed to derive ECDH-1PU key: null handle returned')
+    return createLocalKeyHandleFromOutput(
+      handleOutput,
+      "Failed to derive ECDH-1PU key: null handle returned"
+    );
   }
 
   public keyGetSupportedBackends(): string[] {
-    const stringListHandlePtr = allocatePointer()
+    const stringListHandlePtr = allocatePointer();
 
-    const keyGetSupportedBackendsErrorCode = this.nativeAskar.askar_key_get_supported_backends(stringListHandlePtr)
-    this.handleError(keyGetSupportedBackendsErrorCode)
-    const stringListHandle = readPointerValue<Buffer>(stringListHandlePtr, FFI_POINTER)
+    const keyGetSupportedBackendsErrorCode =
+      this.nativeAskar.askar_key_get_supported_backends(stringListHandlePtr);
+    this.handleError(keyGetSupportedBackendsErrorCode);
+    const stringListHandle = readPointerValue<Buffer>(
+      stringListHandlePtr,
+      FFI_POINTER
+    );
 
-    const listCountPtr = allocateInt32Ptr()
-    const stringListCountErrorCode = this.nativeAskar.askar_string_list_count(stringListHandle, listCountPtr)
-    this.handleError(stringListCountErrorCode)
-    const count = readInt32FromBuffer(listCountPtr)
+    const listCountPtr = allocateInt32Ptr();
+    const stringListCountErrorCode = this.nativeAskar.askar_string_list_count(
+      stringListHandle,
+      listCountPtr
+    );
+    this.handleError(stringListCountErrorCode);
+    const count = readInt32FromBuffer(listCountPtr);
 
-    const supportedBackends: string[] = []
+    const supportedBackends: string[] = [];
     for (let i = 0; i < count; i++) {
-      const strPtr = allocateStringPtr()
-      const errorCode = this.nativeAskar.askar_string_list_get_item(stringListHandle, i, strPtr)
-      this.handleError(errorCode)
-      supportedBackends.push(readStringFromBuffer(strPtr))
+      const strPtr = allocateStringPtr();
+      const errorCode = this.nativeAskar.askar_string_list_get_item(
+        stringListHandle,
+        i,
+        strPtr
+      );
+      this.handleError(errorCode);
+      supportedBackends.push(readStringFromBuffer(strPtr));
     }
-    this.nativeAskar.askar_string_list_free(stringListHandle)
+    this.nativeAskar.askar_string_list_free(stringListHandle);
 
-    return supportedBackends
+    return supportedBackends;
   }
 
   public clearCustomLogger(): void {
-    this.nativeAskar.askar_clear_custom_logger()
+    this.nativeAskar.askar_clear_custom_logger();
   }
 
   // TODO: the id has to be deallocated when its done, but how?
-  public setCustomLogger({ logLevel, flush, enabled, logger }: SetCustomLoggerOptions): void {
-    const { nativeCallback: logCallback } = toNativeLogCallback(logger)
-    
+  public setCustomLogger({
+    logLevel,
+    flush,
+    enabled,
+    logger,
+  }: SetCustomLoggerOptions): void {
+    const { nativeCallback: logCallback } = toNativeLogCallback(logger);
+
     // Context can be null for simplicity
-    const context = Buffer.alloc(0)
-    
+    const context = Buffer.alloc(0);
+
     // For now, we'll pass null pointers for enabled and flush callbacks
     // since the specific callback types are not available in the current implementation
-    const enabledCallback: any = Buffer.alloc(0) // null pointer
-    const flushCallback: any = Buffer.alloc(0) // null pointer
-    
+    const enabledCallback: any = Buffer.alloc(0); // null pointer
+    const flushCallback: any = Buffer.alloc(0); // null pointer
+
     const errorCode = this.nativeAskar.askar_set_custom_logger(
-      context, 
-      logCallback, 
-      enabledCallback, 
-      flushCallback, 
+      context,
+      logCallback,
+      enabledCallback,
+      flushCallback,
       logLevel
-    )
-    this.handleError(errorCode)
+    );
+    this.handleError(errorCode);
   }
 
   public setDefaultLogger(): void {
-    const errorCode = this.nativeAskar.askar_set_default_logger()
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_set_default_logger();
+    this.handleError(errorCode);
   }
 
   public setMaxLogLevel(options: SetMaxLogLevelOptions): void {
-    const { logLevel } = serializeArguments(options)
+    const { logLevel } = serializeArguments(options);
 
-    const errorCode = this.nativeAskar.askar_set_max_log_level(logLevel as number)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_set_max_log_level(
+      logLevel as number
+    );
+    this.handleError(errorCode);
   }
 
   //result_list.rs
   //askar_entry_list
   public entryListCount(options: EntryListCountOptions): number {
-    const { entryListHandle } = serializeArguments(options)
-    const ret = allocateInt32Ptr()
+    const { entryListHandle } = serializeArguments(options);
+    const ret = allocateInt32Ptr();
 
-    const errorCode = this.nativeAskar.askar_entry_list_count(entryListHandle as any, ret)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_entry_list_count(
+      entryListHandle as any,
+      ret
+    );
+    this.handleError(errorCode);
 
-    return readInt32FromBuffer(ret)
+    return readInt32FromBuffer(ret);
   }
   public entryListGetCategory(options: EntryListGetCategoryOptions): string {
-    const { entryListHandle, index } = serializeArguments(options)
-    const ret = allocateStringPtr()
+    const { entryListHandle, index } = serializeArguments(options);
+    const ret = allocateStringPtr();
 
-    const errorCode = this.nativeAskar.askar_entry_list_get_category(entryListHandle as any, index as number, ret)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_entry_list_get_category(
+      entryListHandle as any,
+      index as number,
+      ret
+    );
+    this.handleError(errorCode);
 
-    return readStringFromBuffer(ret)
+    return readStringFromBuffer(ret);
   }
   public entryListGetName(options: EntryListGetNameOptions): string {
-    const { entryListHandle, index } = serializeArguments(options)
-    const ret = allocateStringPtr()
+    const { entryListHandle, index } = serializeArguments(options);
+    const ret = allocateStringPtr();
 
-    const errorCode = this.nativeAskar.askar_entry_list_get_name(entryListHandle as any, index as number, ret)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_entry_list_get_name(
+      entryListHandle as any,
+      index as number,
+      ret
+    );
+    this.handleError(errorCode);
 
-    return readStringFromBuffer(ret)
+    return readStringFromBuffer(ret);
   }
   public entryListGetValue(options: EntryListGetValueOptions): Uint8Array {
-    const { entryListHandle, index } = serializeArguments(options)
-    const ret = allocateSecretBuffer()
+    const { entryListHandle, index } = serializeArguments(options);
+    const ret = allocateSecretBuffer();
 
-    const errorCode = this.nativeAskar.askar_entry_list_get_value(entryListHandle as any, index as number, ret as any)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_entry_list_get_value(
+      entryListHandle as any,
+      index as number,
+      ret as any
+    );
+    this.handleError(errorCode);
 
-    const byteBuffer = readPointerValue<SecretBufferType>(ret, SecretBufferStruct)
-    return new Uint8Array(secretBufferToBuffer(byteBuffer))
+    const byteBuffer = readPointerValue<SecretBufferType>(
+      ret,
+      SecretBufferStruct
+    );
+    return new Uint8Array(secretBufferToBuffer(byteBuffer));
   }
   public entryListGetTags(options: EntryListGetTagsOptions): string | null {
-    const { entryListHandle, index } = serializeArguments(options)
-    const ret = allocateStringPtr()
+    const { entryListHandle, index } = serializeArguments(options);
+    const ret = allocateStringPtr();
 
     const errorCode = this.nativeAskar.askar_entry_list_get_tags(
       entryListHandle as any,
       index as number,
       ret
-    )
-    this.handleError(errorCode)
+    );
+    this.handleError(errorCode);
 
-    return handleNullableReturnPointer<string>(ret)
+    return handleNullableReturnPointer<string>(ret);
   }
   public entryListFree(options: EntryListFreeOptions): void {
-    const { entryListHandle } = serializeArguments(options)
+    const { entryListHandle } = serializeArguments(options);
 
-    this.nativeAskar.askar_entry_list_free(entryListHandle)
+    this.nativeAskar.askar_entry_list_free(entryListHandle);
   }
 
   //askar_key_entry_list
   public keyEntryListCount(options: KeyEntryListCountOptions): number {
-    const { keyEntryListHandle } = serializeArguments(options)
-    const ret = allocateInt32Ptr()
+    const { keyEntryListHandle } = serializeArguments(options);
+    const ret = allocateInt32Ptr();
 
-    const errorCode = this.nativeAskar.askar_key_entry_list_count(keyEntryListHandle, ret)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_entry_list_count(
+      keyEntryListHandle,
+      ret
+    );
+    this.handleError(errorCode);
 
-    return readInt32FromBuffer(ret)
+    return readInt32FromBuffer(ret);
   }
   public keyEntryListFree(options: KeyEntryListFreeOptions): void {
-    const { keyEntryListHandle } = serializeArguments(options)
+    const { keyEntryListHandle } = serializeArguments(options);
 
-    this.nativeAskar.askar_key_entry_list_free(keyEntryListHandle)
+    this.nativeAskar.askar_key_entry_list_free(keyEntryListHandle);
   }
-  public keyEntryListGetAlgorithm(options: KeyEntryListGetAlgorithmOptions): string {
-    const { keyEntryListHandle, index } = serializeArguments(options)
-    const ret = allocateStringPtr()
+  public keyEntryListGetAlgorithm(
+    options: KeyEntryListGetAlgorithmOptions
+  ): string {
+    const { keyEntryListHandle, index } = serializeArguments(options);
+    const ret = allocateStringPtr();
 
-    const errorCode = this.nativeAskar.askar_key_entry_list_get_algorithm(keyEntryListHandle as any, index as number, ret)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_entry_list_get_algorithm(
+      keyEntryListHandle as any,
+      index as number,
+      ret
+    );
+    this.handleError(errorCode);
 
-    return readStringFromBuffer(ret)
+    return readStringFromBuffer(ret);
   }
   public keyEntryListGetName(options: KeyEntryListGetNameOptions): string {
-    const { keyEntryListHandle, index } = serializeArguments(options)
-    const ret = allocateStringPtr()
+    const { keyEntryListHandle, index } = serializeArguments(options);
+    const ret = allocateStringPtr();
 
-    const errorCode = this.nativeAskar.askar_key_entry_list_get_name(keyEntryListHandle as any, index as number, ret)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_entry_list_get_name(
+      keyEntryListHandle as any,
+      index as number,
+      ret
+    );
+    this.handleError(errorCode);
 
-    return readStringFromBuffer(ret)
+    return readStringFromBuffer(ret);
   }
-  public keyEntryListGetMetadata(options: KeyEntryListGetMetadataOptions): string | null {
-    const { keyEntryListHandle, index } = serializeArguments(options)
-    const ret = allocateStringPtr()
+  public keyEntryListGetMetadata(
+    options: KeyEntryListGetMetadataOptions
+  ): string | null {
+    const { keyEntryListHandle, index } = serializeArguments(options);
+    const ret = allocateStringPtr();
 
-    const errorCode = this.nativeAskar.askar_key_entry_list_get_metadata(keyEntryListHandle as any, index as number, ret)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_entry_list_get_metadata(
+      keyEntryListHandle as any,
+      index as number,
+      ret
+    );
+    this.handleError(errorCode);
 
-    return handleNullableReturnPointer<string>(ret)
+    return handleNullableReturnPointer<string>(ret);
   }
-  public keyEntryListGetTags(options: KeyEntryListGetTagsOptions): string | null {
-    const { keyEntryListHandle, index } = serializeArguments(options)
-    const ret = allocateStringPtr()
+  public keyEntryListGetTags(
+    options: KeyEntryListGetTagsOptions
+  ): string | null {
+    const { keyEntryListHandle, index } = serializeArguments(options);
+    const ret = allocateStringPtr();
 
-    const errorCode = this.nativeAskar.askar_key_entry_list_get_tags(keyEntryListHandle as any, index as number, ret)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_entry_list_get_tags(
+      keyEntryListHandle as any,
+      index as number,
+      ret
+    );
+    this.handleError(errorCode);
 
-    return handleNullableReturnPointer<string>(ret)
+    return handleNullableReturnPointer<string>(ret);
   }
-  public keyEntryListLoadLocal(options: KeyEntryListLoadLocalOptions): LocalKeyHandle {
-    const { index, keyEntryListHandle } = serializeArguments(options)
-    const ret = allocatePointer()
+  public keyEntryListLoadLocal(
+    options: KeyEntryListLoadLocalOptions
+  ): LocalKeyHandle {
+    const { index, keyEntryListHandle } = serializeArguments(options);
+    const ret = allocatePointer();
 
-    const errorCode = this.nativeAskar.askar_key_entry_list_load_local(keyEntryListHandle as any, index as number, ret)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_key_entry_list_load_local(
+      keyEntryListHandle as any,
+      index as number,
+      ret
+    );
+    this.handleError(errorCode);
 
-    const handle = readPointerValue<any>(ret, FFI_LOCAL_KEY_HANDLE)
-    const localKeyHandle = LocalKeyHandle.fromHandle(handle)
-    
+    const handle = readPointerValue<any>(ret, FFI_LOCAL_KEY_HANDLE);
+    const localKeyHandle = LocalKeyHandle.fromHandle(handle);
+
     if (!localKeyHandle) {
-      throw AskarError.customError({ message: 'Failed to load local key: null handle returned' })
+      throw AskarError.customError({
+        message: "Failed to load local key: null handle returned",
+      });
     }
-    
-    return localKeyHandle
+
+    return localKeyHandle;
   }
 
   //store.rs
-public storeGenerateRawKey(options: StoreGenerateRawKeyOptions): string {
-  const { seed } = options
+  public storeGenerateRawKey(options: StoreGenerateRawKeyOptions): string {
+    const logp = "[storeGenerateRawKey]";
+    console.log(`${logp} ▶ start`);
 
-  // 1) 시드 변환
-  const seedBuffer = toUint8Array(seed)
-  const seedStruct = uint8arrayToByteBufferStruct(seedBuffer)
-  console.log(
-    'seedBuffer.length=',
-    seedBuffer.length,
-    'seedStruct.len=',
-    Number(seedStruct.len),
-    'data?',
-    !!seedStruct.data
-  )
+    // 1) 입력 → ByteBuffer
+    const seedBuf = toUint8Array(options.seed);
+    const seedStruct = uint8arrayToByteBufferStruct(seedBuf);
+    console.log(
+      `${logp} seed.len=${seedBuf.length} struct.len=${Number(
+        seedStruct.len
+      )} data?=${!!(seedStruct as any).data}`
+    );
 
-  // 2) outPtr 직접 할당 (char* 하나의 크기)
-  // const PTR_SIZE = koffi.sizeof('char *')
-  const outPtr = [null]
-  console.log('outPtr allocated at', outPtr)
+    // 2) out 그릇 (배열) – koffi.get/alloc 필요 없음
+    const out: [string | null] = [null];
+    console.log(`${logp} out init ->`, out);
 
-  // 3) 네이티브 함수 호출
-  const errorCode = this.nativeAskar.askar_store_generate_raw_key(seedStruct, outPtr)
-  console.log('askar_store_generate_raw_key returned', errorCode)
-  this.handleError(errorCode)
+    // 3) 호출
+    const rc = this.nativeAskar.askar_store_generate_raw_key(seedStruct, out);
+    console.log(`${logp} rc=${rc}`);
+    this.handleError(rc);
 
-  const rawKey = outPtr[0] as unknown as string
+    // 4) 결과 확인 (Koffi가 문자열로 채워줌)
+    const v = out[0];
+    if (typeof v !== "string") {
+      throw new Error(
+        `${logp} expected string in out[0]; check bindings: _Out_ const char **out`
+      );
+    }
 
-  // 4) 문자열 읽기
-  return rawKey
-}
-
-
-  public async storeProvision(options: StoreProvisionOptions): Promise<StoreHandle> {
-    const { profile, passKey, keyMethod, specUri, recreate } = serializeArguments(options)
-    
-    const handle = await this.promisifyWithResponse<number, number>(
-      (cb, cbId) => {
-        // Use the standard callback approach instead of toVoidPointerCallback
-        return this.nativeAskar.askar_store_provision(specUri as string, keyMethod as string, passKey as string, profile, recreate as number, cb, cbId)
-      },
-      FFI_STORE_HANDLE
-    )
-
-    return StoreHandle.fromHandle(handle)
+    console.log(`${logp} rawKey len=${v.length} preview=${v.slice(0, 12)}…`);
+    console.log(`${logp} ✅ done`);
+    return v;
   }
+
+  // public async storeProvision(
+  //   options: StoreProvisionOptions
+  // ): Promise<StoreHandle> {
+  //   const { profile, passKey, keyMethod, specUri, recreate } =
+  //     serializeArguments(options);
+
+  //   const handle = await this.promisifyWithResponse<number, number>(
+  //     (cb, cbId) => {
+  //       // Use the standard callback approach instead of toVoidPointerCallback
+  //       return this.nativeAskar.askar_store_provision(
+  //         specUri as string,
+  //         keyMethod as string,
+  //         passKey as string,
+  //         profile,
+  //         recreate as number,
+  //         cb,
+  //         cbId
+  //       );
+  //     },
+  //     FFI_STORE_HANDLE
+  //   );
+
+  //   return StoreHandle.fromHandle(handle);
+  // }
+
   public async storeOpen(options: StoreOpenOptions): Promise<StoreHandle> {
-    const { profile, keyMethod, passKey, specUri } = serializeArguments(options)
+    const { profile, keyMethod, passKey, specUri } =
+      serializeArguments(options);
 
     const handle = await this.promisifyWithResponse<number>(
-      (cb, cbId) => this.nativeAskar.askar_store_open(specUri, keyMethod, passKey, profile, cb, cbId),
+      (cb, cbId) =>
+        this.nativeAskar.askar_store_open(
+          specUri,
+          keyMethod,
+          passKey,
+          profile,
+          cb,
+          cbId
+        ),
       FFI_STORE_HANDLE
-    )
+    );
 
-    return StoreHandle.fromHandle(handle)
+    return StoreHandle.fromHandle(handle);
   }
   public async storeRemove(options: StoreRemoveOptions): Promise<number> {
-    const { specUri } = serializeArguments(options)
+    const { specUri } = serializeArguments(options);
     const response = await this.promisifyWithCustomResponse<number, [number]>(
       (cb, cbId) => this.nativeAskar.askar_store_remove(specUri, cb, cbId),
       [FFI_INT8], // removed: i8
       0 // response is at index 0 (first argument after id, errorCode)
-    )
+    );
 
-    return handleInvalidNullResponse(response)
+    return handleInvalidNullResponse(response);
   }
-  public async storeCreateProfile(options: StoreCreateProfileOptions): Promise<string> {
-    const { storeHandle, profile } = serializeArguments(options)
+  public async storeCreateProfile(
+    options: StoreCreateProfileOptions
+  ): Promise<string> {
+    const { storeHandle, profile } = serializeArguments(options);
     const response = await this.promisifyWithResponse<string>(
-      (cb, cbId) => this.nativeAskar.askar_store_create_profile(storeHandle as any, profile as string, cb, cbId),
+      (cb, cbId) =>
+        this.nativeAskar.askar_store_create_profile(
+          storeHandle as any,
+          profile as string,
+          cb,
+          cbId
+        ),
       FFI_STRING
-    )
+    );
 
-    return handleInvalidNullResponse(response)
+    return handleInvalidNullResponse(response);
   }
-  public async storeGetProfileName(options: StoreGetProfileNameOptions): Promise<string> {
-    const { storeHandle } = serializeArguments(options)
+  public async storeGetProfileName(
+    options: StoreGetProfileNameOptions
+  ): Promise<string> {
+    const { storeHandle } = serializeArguments(options);
     const response = await this.promisifyWithResponse<string>((cb, cbId) =>
-      this.nativeAskar.askar_store_get_profile_name(storeHandle as any, cb, cbId)
-    )
+      this.nativeAskar.askar_store_get_profile_name(
+        storeHandle as any,
+        cb,
+        cbId
+      )
+    );
 
-    return handleInvalidNullResponse(response)
+    return handleInvalidNullResponse(response);
   }
-  public async storeListProfiles(options: StoreListProfilesOptions): Promise<string[]> {
-    const { storeHandle } = serializeArguments(options)
+  public async storeListProfiles(
+    options: StoreListProfilesOptions
+  ): Promise<string[]> {
+    const { storeHandle } = serializeArguments(options);
     const listHandle = await this.promisifyWithResponse<Buffer>(
-      (cb, cbId) => this.nativeAskar.askar_store_list_profiles(storeHandle as any, cb, cbId),
+      (cb, cbId) =>
+        this.nativeAskar.askar_store_list_profiles(
+          storeHandle as any,
+          cb,
+          cbId
+        ),
       FFI_STRING_LIST_HANDLE
-    )
+    );
     if (listHandle === null) {
-      throw AskarError.customError({ message: 'Invalid handle' })
+      throw AskarError.customError({ message: "Invalid handle" });
     }
-    const listCountPtr = allocateInt32Ptr()
-    const errorCode = this.nativeAskar.askar_string_list_count(listHandle, listCountPtr)
-    this.handleError(errorCode)
-    const count = readInt32FromBuffer(listCountPtr)
-    
-    const ret: string[] = []
+    const listCountPtr = allocateInt32Ptr();
+    const errorCode = this.nativeAskar.askar_string_list_count(
+      listHandle,
+      listCountPtr
+    );
+    this.handleError(errorCode);
+    const count = readInt32FromBuffer(listCountPtr);
+
+    const ret: string[] = [];
     for (let i = 0; i < count; i++) {
-      const strPtr = allocateStringPtr()
-      const errorCode = this.nativeAskar.askar_string_list_get_item(listHandle, i, strPtr)
-      this.handleError(errorCode)
-      ret.push(readStringFromBuffer(strPtr))
+      const strPtr = allocateStringPtr();
+      const errorCode = this.nativeAskar.askar_string_list_get_item(
+        listHandle,
+        i,
+        strPtr
+      );
+      this.handleError(errorCode);
+      ret.push(readStringFromBuffer(strPtr));
     }
-    this.nativeAskar.askar_string_list_free(listHandle)
-    return ret
+    this.nativeAskar.askar_string_list_free(listHandle);
+    return ret;
   }
-  public async storeRemoveProfile(options: StoreRemoveProfileOptions): Promise<number> {
-    const { storeHandle, profile } = serializeArguments(options)
+  public async storeRemoveProfile(
+    options: StoreRemoveProfileOptions
+  ): Promise<number> {
+    const { storeHandle, profile } = serializeArguments(options);
 
     const response = await this.promisifyWithResponse<number>(
-      (cb, cbId) => this.nativeAskar.askar_store_remove_profile(storeHandle as any, profile as string, cb, cbId),
+      (cb, cbId) =>
+        this.nativeAskar.askar_store_remove_profile(
+          storeHandle as any,
+          profile as string,
+          cb,
+          cbId
+        ),
       FFI_INT8
-    )
+    );
 
-    return handleInvalidNullResponse(response)
+    return handleInvalidNullResponse(response);
   }
-  public async storeGetDefaultProfile(options: StoreGetDefaultProfileOptions): Promise<string> {
-    const { storeHandle } = serializeArguments(options)
+  public async storeGetDefaultProfile(
+    options: StoreGetDefaultProfileOptions
+  ): Promise<string> {
+    const { storeHandle } = serializeArguments(options);
     const response = await this.promisifyWithResponse<string>((cb, cbId) =>
-      this.nativeAskar.askar_store_get_default_profile(storeHandle as any, cb, cbId)
-    )
+      this.nativeAskar.askar_store_get_default_profile(
+        storeHandle as any,
+        cb,
+        cbId
+      )
+    );
 
-    return handleInvalidNullResponse(response)
+    return handleInvalidNullResponse(response);
   }
-  public async storeSetDefaultProfile(options: StoreSetDefaultProfileOptions): Promise<void> {
-    const { storeHandle, profile } = serializeArguments(options)
+  public async storeSetDefaultProfile(
+    options: StoreSetDefaultProfileOptions
+  ): Promise<void> {
+    const { storeHandle, profile } = serializeArguments(options);
 
     return this.promisify((cb, cbId) =>
-      this.nativeAskar.askar_store_set_default_profile(storeHandle as any, profile as string, cb, cbId)
-    )
+      this.nativeAskar.askar_store_set_default_profile(
+        storeHandle as any,
+        profile as string,
+        cb,
+        cbId
+      )
+    );
   }
-  public async storeRenameProfile(options: StoreRenameProfileOptions): Promise<number> {
+  public async storeRenameProfile(
+    options: StoreRenameProfileOptions
+  ): Promise<number> {
     // Function not available in current DLL version
-    throw new Error('askar_store_rename_profile is not available in the current native library version')
-    
+    throw new Error(
+      "askar_store_rename_profile is not available in the current native library version"
+    );
+
     // // Handle both StoreHandle object and number
-    // const storeHandle = typeof options.storeHandle === 'object' && options.storeHandle?.handle 
-    //   ? options.storeHandle.handle 
+    // const storeHandle = typeof options.storeHandle === 'object' && options.storeHandle?.handle
+    //   ? options.storeHandle.handle
     //   : options.storeHandle
-    
+
     // const response = await this.promisifyWithResponse<number>(
     //   (cb, cbId) => this.nativeAskar.askar_store_rename_profile(
     //     storeHandle,
@@ -1256,19 +1567,23 @@ public storeGenerateRawKey(options: StoreGenerateRawKeyOptions): string {
     // )
     // return handleInvalidNullResponse(response)
   }
-  public async storeCopyProfile(options: StoreCopyProfileOptions): Promise<number> {
+  public async storeCopyProfile(
+    options: StoreCopyProfileOptions
+  ): Promise<number> {
     // Function not available in current DLL version
-    throw new Error('askar_store_copy_profile is not available in the current native library version')
-    
+    throw new Error(
+      "askar_store_copy_profile is not available in the current native library version"
+    );
+
     // // Handle both StoreHandle objects and numbers
     // const fromHandle = typeof options.fromHandle === 'object' && options.fromHandle?.handle
     //   ? options.fromHandle.handle
     //   : options.fromHandle
-      
+
     // const toHandle = typeof options.toHandle === 'object' && options.toHandle?.handle
     //   ? options.toHandle.handle
     //   : options.toHandle
-    
+
     // const response = await this.promisifyWithResponse<number>(
     //   (cb, cbId) => this.nativeAskar.askar_store_copy_profile(
     //     fromHandle,
@@ -1283,182 +1598,271 @@ public storeGenerateRawKey(options: StoreGenerateRawKeyOptions): string {
     // return handleInvalidNullResponse(response)
   }
   public async storeRekey(options: StoreRekeyOptions): Promise<void> {
-    const { passKey, keyMethod, storeHandle } = serializeArguments(options)
-
-    return this.promisify((cb, cbId) => this.nativeAskar.askar_store_rekey(storeHandle as any, keyMethod as string, passKey as string, cb, cbId))
-  }
-  public storeCopyTo(options: StoreCopyToOptions): Promise<void> {
-    const { storeHandle, targetUri, passKey, keyMethod, recreate } = serializeArguments(options)
+    const { passKey, keyMethod, storeHandle } = serializeArguments(options);
 
     return this.promisify((cb, cbId) =>
-      this.nativeAskar.askar_store_copy(storeHandle as any, targetUri as string, keyMethod as string, passKey as string, recreate as number, cb, cbId)
-    )
+      this.nativeAskar.askar_store_rekey(
+        storeHandle as any,
+        keyMethod as string,
+        passKey as string,
+        cb,
+        cbId
+      )
+    );
+  }
+  public storeCopyTo(options: StoreCopyToOptions): Promise<void> {
+    const { storeHandle, targetUri, passKey, keyMethod, recreate } =
+      serializeArguments(options);
+
+    return this.promisify((cb, cbId) =>
+      this.nativeAskar.askar_store_copy(
+        storeHandle as any,
+        targetUri as string,
+        keyMethod as string,
+        passKey as string,
+        recreate as number,
+        cb,
+        cbId
+      )
+    );
   }
   public storeClose(options: StoreCloseOptions): Promise<void> {
-    const { storeHandle } = serializeArguments(options)
+    const { storeHandle } = serializeArguments(options);
 
-    return this.promisify((cb, cbId) => this.nativeAskar.askar_store_close(storeHandle as any, cb, cbId))
+    return this.promisify((cb, cbId) =>
+      this.nativeAskar.askar_store_close(storeHandle as any, cb, cbId)
+    );
   }
 
   //askar_scan
   public async scanStart(options: ScanStartOptions): Promise<ScanHandle> {
-    const { category, limit, offset, profile, storeHandle, tagFilter, orderBy, descending } =
-      serializeArguments(options)
+    const {
+      category,
+      limit,
+      offset,
+      profile,
+      storeHandle,
+      tagFilter,
+      orderBy,
+      descending,
+    } = serializeArguments(options);
     const handle = await this.promisifyWithResponse<number>(
       (cb, cbId) =>
         this.nativeAskar.askar_scan_start(
           storeHandle as any,
-          profile || '',
-          category || '',
+          profile || "",
+          category || "",
           tagFilter as string,
           +offset || 0,
           +limit || -1,
-          orderBy || '',
+          orderBy || "",
           descending as number,
           cb,
           cbId
         ),
       FFI_SCAN_HANDLE
-    )
+    );
 
-    return ScanHandle.fromHandle(handle)
+    return ScanHandle.fromHandle(handle);
   }
-  public async scanNext(options: ScanNextOptions): Promise<EntryListHandle | null> {
-    const { scanHandle } = serializeArguments(options)
+  public async scanNext(
+    options: ScanNextOptions
+  ): Promise<EntryListHandle | null> {
+    const { scanHandle } = serializeArguments(options);
 
     const handle = await this.promisifyWithResponse<Buffer | null>(
-      (cb, cbId) => this.nativeAskar.askar_scan_next(scanHandle as any, cb, cbId),
+      (cb, cbId) =>
+        this.nativeAskar.askar_scan_next(scanHandle as any, cb, cbId),
       FFI_ENTRY_LIST_HANDLE
-    )
+    );
 
-    return EntryListHandle.fromHandle(handle)
+    return EntryListHandle.fromHandle(handle);
   }
   public scanFree(options: ScanFreeOptions): void {
-    const { scanHandle } = serializeArguments(options)
+    const { scanHandle } = serializeArguments(options);
 
-    const errorCode = this.nativeAskar.askar_scan_free(scanHandle as any)
-    this.handleError(errorCode)
+    const errorCode = this.nativeAskar.askar_scan_free(scanHandle as any);
+    this.handleError(errorCode);
   }
 
   //askar_session
-  public async sessionStart(options: SessionStartOptions): Promise<SessionHandle> {
-    const { storeHandle, profile, asTransaction } = serializeArguments(options)
+  public async sessionStart(
+    options: SessionStartOptions
+  ): Promise<SessionHandle> {
+    const { storeHandle, profile, asTransaction } = serializeArguments(options);
 
     const handle = await this.promisifyWithResponse<number, number>(
-      (cb, cbId) => this.nativeAskar.askar_session_start(storeHandle as any, profile as string, asTransaction as number, cb, cbId),
+      (cb, cbId) =>
+        this.nativeAskar.askar_session_start(
+          storeHandle as any,
+          profile as string,
+          asTransaction as number,
+          cb,
+          cbId
+        ),
       FFI_SESSION_HANDLE
-    )
+    );
 
-    return SessionHandle.fromHandle(handle)
+    return SessionHandle.fromHandle(handle);
   }
   public async sessionCount(options: SessionCountOptions): Promise<number> {
-    const { sessionHandle, tagFilter, category } = serializeArguments(options)
+    const { sessionHandle, tagFilter, category } = serializeArguments(options);
     const response = await this.promisifyWithResponse<number, number>(
-      (cb, cbId) => this.nativeAskar.askar_session_count(sessionHandle as any, category || '*', tagFilter as string, cb, cbId),
+      (cb, cbId) =>
+        this.nativeAskar.askar_session_count(
+          sessionHandle as any,
+          category || "*",
+          tagFilter as string,
+          cb,
+          cbId
+        ),
       FFI_INT64
-    )
+    );
 
-    return handleInvalidNullResponse(response)
+    return handleInvalidNullResponse(response);
   }
-  public async sessionFetch(options: SessionFetchOptions): Promise<EntryListHandle | null> {
-    const { name, category, sessionHandle, forUpdate } = serializeArguments(options)
+  public async sessionFetch(
+    options: SessionFetchOptions
+  ): Promise<EntryListHandle | null> {
+    const { name, category, sessionHandle, forUpdate } =
+      serializeArguments(options);
     const handle = await this.promisifyWithResponse<Uint8Array>(
-      (cb, cbId) => this.nativeAskar.askar_session_fetch(sessionHandle as any, category || '', name as string, forUpdate as number, cb, cbId),
+      (cb, cbId) =>
+        this.nativeAskar.askar_session_fetch(
+          sessionHandle as any,
+          category || "",
+          name as string,
+          forUpdate as number,
+          cb,
+          cbId
+        ),
       FFI_ENTRY_LIST_HANDLE
-    )
+    );
 
-    return EntryListHandle.fromHandle(handle)
+    return EntryListHandle.fromHandle(handle);
   }
-  public async sessionFetchAll(options: SessionFetchAllOptions): Promise<EntryListHandle | null> {
-    const { forUpdate, sessionHandle, tagFilter, limit, category, orderBy, descending } =
-      serializeArguments(options)
-  
+  public async sessionFetchAll(
+    options: SessionFetchAllOptions
+  ): Promise<EntryListHandle | null> {
+    const {
+      forUpdate,
+      sessionHandle,
+      tagFilter,
+      limit,
+      category,
+      orderBy,
+      descending,
+    } = serializeArguments(options);
+
     // 0) 필수 핸들 가드
     if (sessionHandle === null || sessionHandle === undefined) {
-      console.error('❌ sessionFetchAll: sessionHandle is null or undefined')
-      console.error('Options received:', options)
-      throw new Error('sessionHandle is null or undefined in sessionFetchAll')
+      console.error("❌ sessionFetchAll: sessionHandle is null or undefined");
+      console.error("Options received:", options);
+      throw new Error("sessionHandle is null or undefined in sessionFetchAll");
     }
-  
-     // 1) 안전 디폴트 & 타입 보정
-     const cat  = category ?? ''                                             // 빈 문자열로 전체 조회 시도
-     const tag  = tagFilter ?? null                                          // const char* (NULL 허용)
-     const lim  = Number.isFinite(limit as number) ? (limit as number) : -1  // int64
-     const ord  = orderBy && String(orderBy).trim().length > 0 ? String(orderBy) : 'name' // const char*
-     const desc = descending ? 1 : 0                                         // int8
-     const upd  = forUpdate ? 1 : 0                                          // int8
-  
+
+    // 1) 안전 디폴트 & 타입 보정
+    const cat = category ?? ""; // 빈 문자열로 전체 조회 시도
+    const tag = tagFilter ?? null; // const char* (NULL 허용)
+    const lim = Number.isFinite(limit as number) ? (limit as number) : -1; // int64
+    const ord =
+      orderBy && String(orderBy).trim().length > 0 ? String(orderBy) : "name"; // const char*
+    const desc = descending ? 1 : 0; // int8
+    const upd = forUpdate ? 1 : 0; // int8
+
     // 2) 최종 전달값 디버깅 (치환 후 값)
-    console.log('🔍 sessionFetchAll(final args) ->', {
-      sessionHandle, category: cat, tagFilter: tag, limit: lim, orderBy: ord, descending: desc, forUpdate: upd
-    })
-  
+    console.log("🔍 sessionFetchAll(final args) ->", {
+      sessionHandle,
+      category: cat,
+      tagFilter: tag,
+      limit: lim,
+      orderBy: ord,
+      descending: desc,
+      forUpdate: upd,
+    });
+
     // 3) 호출 (반환은 EntryList 핸들 포인터)
     const handle = await this.promisifyWithResponse<any>(
       (cb, cbId) =>
         this.nativeAskar.askar_session_fetch_all(
-          sessionHandle as number,  // size_t
-          cat,                      // const char*
-          tag,                      // const char* | NULL
-          lim,                      // int64
-          ord,                      // const char*
-          desc,                     // int8
-          upd,                      // int8
-          cb,                       // void*
-          cbId                      // int64
+          sessionHandle as number, // size_t
+          cat, // const char*
+          tag, // const char* | NULL
+          lim, // int64
+          ord, // const char*
+          desc, // int8
+          upd, // int8
+          cb, // void*
+          cbId // int64
         ),
-      FFI_ENTRY_LIST_HANDLE         // ⬅️ 포인터 핸들 타입이어야 함
-    )
-  
-    return EntryListHandle.fromHandle(handle)
-  }
-  
-  public async sessionRemoveAll(options: SessionRemoveAllOptions): Promise<number> {
-    const { sessionHandle, tagFilter, category } = serializeArguments(options)
-    const response = await this.promisifyWithResponse<number>(
-      (cb, cbId) => this.nativeAskar.askar_session_remove_all(sessionHandle as any, category as string, tagFilter, cb, cbId),
-      FFI_INT64
-    )
+      FFI_ENTRY_LIST_HANDLE // ⬅️ 포인터 핸들 타입이어야 함
+    );
 
-    return handleInvalidNullResponse(response)
+    return EntryListHandle.fromHandle(handle);
+  }
+
+  public async sessionRemoveAll(
+    options: SessionRemoveAllOptions
+  ): Promise<number> {
+    const { sessionHandle, tagFilter, category } = serializeArguments(options);
+    const response = await this.promisifyWithResponse<number>(
+      (cb, cbId) =>
+        this.nativeAskar.askar_session_remove_all(
+          sessionHandle as any,
+          category as string,
+          tagFilter,
+          cb,
+          cbId
+        ),
+      FFI_INT64
+    );
+
+    return handleInvalidNullResponse(response);
   }
   public async sessionUpdate(options: SessionUpdateOptions): Promise<void> {
-    const { name, sessionHandle, category, expiryMs, tags, operation, value } = serializeArguments(options)
+    const { name, sessionHandle, category, expiryMs, tags, operation, value } =
+      serializeArguments(options);
 
     // 1) value가 null/undefined인 경우 빈 ByteBuffer로 대체
-  const valueBuf =
-    value && typeof value === 'object' && 'len' in (value as any) && 'data' in (value as any)
-      ? (value as any) // 이미 ByteBufferStruct
-      : uint8arrayToByteBufferStruct(new Uint8Array(0)) // len=0, data=NULL
+    const valueBuf =
+      value &&
+      typeof value === "object" &&
+      "len" in (value as any) &&
+      "data" in (value as any)
+        ? (value as any) // 이미 ByteBufferStruct
+        : uint8arrayToByteBufferStruct(new Uint8Array(0)); // len=0, data=NULL
 
-  // 2) tags: 객체면 JSON 문자열, undefined면 null → OK (Rust 측 Option 처리)
-  const tagsStr = typeof tags === 'string' ? tags : tags ?? null
+    // 2) tags: 객체면 JSON 문자열, undefined면 null → OK (Rust 측 Option 처리)
+    const tagsStr = typeof tags === "string" ? tags : tags ?? null;
 
-  // 3) expiry_ms: 미지정일 때만 -1, 그 외는 숫자 그대로
-  const expiry = (expiryMs ?? -1) as number
+    // 3) expiry_ms: 미지정일 때만 -1, 그 외는 숫자 그대로
+    const expiry = (expiryMs ?? -1) as number;
 
-  // 4) operation: 0/1/2인지 검증(선택)
-  //   0 => Insert, 1 => Replace, 2 => Remove
-  if (operation !== 0 && operation !== 1 && operation !== 2) {
-    throw new Error(`Invalid operation: ${operation}`)
+    // 4) operation: 0/1/2인지 검증(선택)
+    //   0 => Insert, 1 => Replace, 2 => Remove
+    if (operation !== 0 && operation !== 1 && operation !== 2) {
+      throw new Error(`Invalid operation: ${operation}`);
+    }
+
+    return this.promisify((cb, cbId) =>
+      this.nativeAskar.askar_session_update(
+        sessionHandle as any, // size_t
+        operation, // int8
+        category, // const char*
+        name, // const char*
+        valueBuf as any, // ByteBuffer (by value) ★ 빈 버퍼 보장
+        tagsStr, // const char* | null
+        expiry, // int64 (>=0 or -1)
+        cb, // 함수 포인터 (koffi.register 사용 권장)
+        cbId // int64
+      )
+    );
   }
-
-  return this.promisify((cb, cbId) =>
-    this.nativeAskar.askar_session_update(
-      sessionHandle as any,          // size_t
-      operation,              // int8
-      category,               // const char*
-      name,                   // const char*
-      valueBuf as any,        // ByteBuffer (by value) ★ 빈 버퍼 보장
-      tagsStr,                // const char* | null
-      expiry,                 // int64 (>=0 or -1)
-      cb,                     // 함수 포인터 (koffi.register 사용 권장)
-      cbId                    // int64
-    )
-  )
-  }
-  public async sessionInsertKey(options: SessionInsertKeyOptions): Promise<void> {
-    const { name, sessionHandle, expiryMs, localKeyHandle, metadata, tags } = serializeArguments(options)
+  public async sessionInsertKey(
+    options: SessionInsertKeyOptions
+  ): Promise<void> {
+    const { name, sessionHandle, expiryMs, localKeyHandle, metadata, tags } =
+      serializeArguments(options);
 
     return this.promisify((cb, cbId) =>
       this.nativeAskar.askar_session_insert_key(
@@ -1471,20 +1875,38 @@ public storeGenerateRawKey(options: StoreGenerateRawKeyOptions): string {
         cb,
         cbId
       )
-    )
+    );
   }
-  public async sessionFetchKey(options: SessionFetchKeyOptions): Promise<KeyEntryListHandle | null> {
-    const { forUpdate, sessionHandle, name } = serializeArguments(options)
+  public async sessionFetchKey(
+    options: SessionFetchKeyOptions
+  ): Promise<KeyEntryListHandle | null> {
+    const { forUpdate, sessionHandle, name } = serializeArguments(options);
 
     const handle = await this.promisifyWithResponse<Uint8Array>(
-      (cb, cbId) => this.nativeAskar.askar_session_fetch_key(sessionHandle as any, name as string, forUpdate as number, cb, cbId),
+      (cb, cbId) =>
+        this.nativeAskar.askar_session_fetch_key(
+          sessionHandle as any,
+          name as string,
+          forUpdate as number,
+          cb,
+          cbId
+        ),
       FFI_KEY_ENTRY_LIST_HANDLE
-    )
+    );
 
-    return KeyEntryListHandle.fromHandle(handle)
+    return KeyEntryListHandle.fromHandle(handle);
   }
-  public async sessionFetchAllKeys(options: SessionFetchAllKeysOptions): Promise<KeyEntryListHandle | null> {
-    const { forUpdate, limit, tagFilter, sessionHandle, algorithm, thumbprint } = serializeArguments(options)
+  public async sessionFetchAllKeys(
+    options: SessionFetchAllKeysOptions
+  ): Promise<KeyEntryListHandle | null> {
+    const {
+      forUpdate,
+      limit,
+      tagFilter,
+      sessionHandle,
+      algorithm,
+      thumbprint,
+    } = serializeArguments(options);
 
     const handle = await this.promisifyWithResponse<Uint8Array>(
       (cb, cbId) =>
@@ -1499,34 +1921,110 @@ public storeGenerateRawKey(options: StoreGenerateRawKeyOptions): string {
           cbId
         ),
       FFI_KEY_ENTRY_LIST_HANDLE
-    )
+    );
 
-    return KeyEntryListHandle.fromHandle(handle)
+    return KeyEntryListHandle.fromHandle(handle);
   }
-  public async sessionUpdateKey(options: SessionUpdateKeyOptions): Promise<void> {
-    const { expiryMs, tags, name, sessionHandle, metadata } = serializeArguments(options)
+  public async sessionUpdateKey(
+    options: SessionUpdateKeyOptions
+  ): Promise<void> {
+    const { expiryMs, tags, name, sessionHandle, metadata } =
+      serializeArguments(options);
 
     return this.promisify((cb, cbId) =>
-      this.nativeAskar.askar_session_update_key(sessionHandle as any, name as string, metadata, tags, +expiryMs || -1, cb, cbId)
-    )
+      this.nativeAskar.askar_session_update_key(
+        sessionHandle as any,
+        name as string,
+        metadata,
+        tags,
+        +expiryMs || -1,
+        cb,
+        cbId
+      )
+    );
   }
-  public async sessionRemoveKey(options: SessionRemoveKeyOptions): Promise<void> {
-    const { sessionHandle, name } = serializeArguments(options)
+  public async sessionRemoveKey(
+    options: SessionRemoveKeyOptions
+  ): Promise<void> {
+    const { sessionHandle, name } = serializeArguments(options);
 
-    return this.promisify((cb, cbId) => this.nativeAskar.askar_session_remove_key(sessionHandle as any, name as string, cb, cbId))
+    return this.promisify((cb, cbId) =>
+      this.nativeAskar.askar_session_remove_key(
+        sessionHandle as any,
+        name as string,
+        cb,
+        cbId
+      )
+    );
   }
   public async sessionClose(options: SessionCloseOptions): Promise<void> {
-    const { commit, sessionHandle } = serializeArguments(options)
+    const { commit, sessionHandle } = serializeArguments(options);
 
-    return await this.promisify((cb, cbId) => this.nativeAskar.askar_session_close(sessionHandle as any, commit as number, cb, cbId))
+    return await this.promisify((cb, cbId) =>
+      this.nativeAskar.askar_session_close(
+        sessionHandle as any,
+        commit as number,
+        cb,
+        cbId
+      )
+    );
   }
 
   //migration.rs
   public async migrateIndySdk(options: MigrateIndySdkOptions): Promise<void> {
-    const { specUri, kdfLevel, walletKey, walletName } = serializeArguments(options)
+    const { specUri, kdfLevel, walletKey, walletName } =
+      serializeArguments(options);
     await this.promisify((cb, cbId) =>
-      this.nativeAskar.askar_migrate_indy_sdk(specUri, walletName, walletKey, kdfLevel, cb, cbId)
-    )
+      this.nativeAskar.askar_migrate_indy_sdk(
+        specUri,
+        walletName,
+        walletKey,
+        kdfLevel,
+        cb,
+        cbId
+      )
+    );
   }
 
+  // Promise 기반 콜백 처리를 위한 헬퍼 메서드들
+  private pending = new Map<number, { resolve: Function; reject: Function }>();
+  private nextId = 1;
+  private allocId = () => this.nextId++;
+
+  private makeCbHandle<T extends any[]>(
+    proto: any,
+    handler: (...args: T) => void
+  ) {
+    // Koffi 2.14.1에서는 그냥 JS 함수를 넘겨도 되지만,
+    // 명시적 proto로 넘기면 안전합니다.
+    const fn = ((...args: any[]) => handler(...(args as T))) as any;
+    (fn as any).koffi_prototype = proto;
+    return fn;
+  }
+
+  // Promise 기반 storeProvision 메서드
+  public async storeProvision(
+    options: StoreProvisionOptions
+  ): Promise<StoreHandle> {
+    console.log("[provision] types =", {
+      spec_uri: typeof options.specUri,
+      key_method: typeof options.keyMethod,
+      pass_key: typeof options.passKey, // ← 반드시 'string' 이어야 함
+      profile: typeof options.profile,
+      recreate: typeof options.recreate, // 'number'
+    });
+    const handle = await this.promisifyWithResponse<number>((cb, cbId) =>
+      this.nativeAskar.askar_store_provision(
+        options.specUri,
+        options.keyMethod ?? "",
+        options.passKey ?? "",
+        options.profile ?? null,
+        options.recreate ? 1 : 0,
+        cb,
+        cbId
+      )
+    );
+
+    return StoreHandle.fromHandle(handle);
+  }
 }
