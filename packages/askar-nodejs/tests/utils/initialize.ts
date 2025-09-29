@@ -16,14 +16,20 @@ export const testStoreUri = process.env.URI || "sqlite://:memory:";
 
 export const setupWallet = async () => {
   const key = getRawKey();
-
+  console.log("Before Provision");
+  console.log("check key", key,"key type",typeof key);
+  console.log("testStoreUri", testStoreUri,"testStoreUri type",typeof testStoreUri);
+  console.log("KdfMethod.Raw", KdfMethod.Raw,"KdfMethod.Raw type",typeof KdfMethod.Raw);
+  console.log("StoreKeyMethod", StoreKeyMethod,"StoreKeyMethod type",typeof StoreKeyMethod);
+  const keyMethod = new StoreKeyMethod(KdfMethod.Raw);
+  console.log("keyMethod", keyMethod,"keyMethod type",typeof keyMethod);
   const result = await Store.provision({
     recreate: true,
     uri: testStoreUri,
     keyMethod: new StoreKeyMethod(KdfMethod.Raw),
     passKey: key,
   });
-
+  console.log("Provision succeeded");
   return result;
 };
 

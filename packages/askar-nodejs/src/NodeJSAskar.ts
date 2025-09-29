@@ -130,14 +130,14 @@ import {
 import {
   deallocateCallbackBuffer,
   serializeArguments,
-  Cb_StoreHandle,
 } from "./ffi";
 import {
   toNativeCallback,
   toNativeCallbackWithResponse,
   toNativeLogCallback,
-  toVoidPointerCallback,
   createNativeCallback,
+  toNativeStoreProvisionCallback,
+  Cb_StoreHandle,
 } from "./ffi/callback";
 import {
   encryptedBufferStructToClass,
@@ -166,7 +166,7 @@ import {
   AeadParamsStruct,
   ByteBufferStruct,
 } from "./ffi/structures";
-import { getNativeAskar } from "./library";
+import { getNativeAskar } from "./library/register";
 import koffi from "koffi";
 import {
   // handleReturnPointer,
@@ -285,69 +285,71 @@ export class NodeJSAskar implements Askar {
         errorCode,
         response
       ) => {
-        deallocateCallbackBuffer(id);
-
-        if (errorCode !== 0) {
-          const error = this.getAskarError(errorCode);
-          reject(error);
-          return;
-        }
-
-        if (typeof response === "string") {
-          if (responseFfiType === FFI_STRING) {
-            resolve(response as unknown as Return);
-            return;
-          }
-          try {
-            resolve(JSON.parse(response) as Return);
-            return;
-          } catch (error) {
+        console.log('[provision.cb] fired id=', id, 'err=', errorCode, 'response=', response);
+        try {
+          if (errorCode !== 0) {
+            const error = this.getAskarError(errorCode);
             reject(error);
             return;
           }
-        } else if (typeof response === "number") {
-          resolve(response as unknown as Return);
-          return;
-        } else if (response instanceof Buffer) {
-          try {
-            // koffi buffer may represent a null pointer
-            if (
-              typeof (response as any).address === "function" &&
-              (response as any).address() === 0
-            ) {
-              resolve(null);
+
+          if (typeof response === "string") {
+            if (responseFfiType === FFI_STRING) {
+              resolve(response as unknown as Return);
               return;
             }
-          } catch (_) {
-            // ignore address access errors
+            try {
+              resolve(JSON.parse(response) as Return);
+              return;
+            } catch (error) {
+              reject(error);
+              return;
+            }
+          } else if (typeof response === "number") {
+            resolve(response as unknown as Return);
+            return;
+          } else if (response instanceof Buffer) {
+            try {
+              // koffi buffer may represent a null pointer
+              if (
+                typeof (response as any).address === "function" &&
+                (response as any).address() === 0
+              ) {
+                resolve(null);
+                return;
+              }
+            } catch (_) {
+              // ignore address access errors
+            }
+            resolve(response as unknown as Return);
+            return;
+          } else if (response === null) {
+            // Handle null responses
+            resolve(null as unknown as Return);
+            return;
+          } else if (typeof response === "object" && response !== null) {
+            // Handle object responses (like handles)
+            resolve(response as unknown as Return);
+            return;
           }
-          resolve(response as unknown as Return);
-          return;
-        } else if (response === null) {
-          // Handle null responses
-          resolve(null as unknown as Return);
-          return;
-        } else if (typeof response === "object" && response !== null) {
-          // Handle object responses (like handles)
-          resolve(response as unknown as Return);
-          return;
-        }
 
-        reject(
-          AskarError.customError({
-            message: `could not parse return type properly (type: ${typeof response})`,
-          })
-        );
+          reject(
+            AskarError.customError({
+              message: `could not parse return type properly (type: ${typeof response})`,
+            })
+          );
+        } finally {
+          deallocateCallbackBuffer(id);
+        }
       };
 
-      const { nativeCallback, id } = toNativeCallbackWithResponse(
-        cb,
-        responseFfiType
-      );
-      // console.log('[promisifyWithResponse] Calling native method with callback id:', id)
+      // toNativeCallbackWithResponse를 사용하여 콜백 등록
+      const { nativeCallback: registeredCallback, id } = toNativeCallbackWithResponse(cb, responseFfiType);
 
-      const errorCode = method(nativeCallback, Number(id));
-      // console.log('[promisifyWithResponse] Native method returned error code:', errorCode)
+      console.log('[promisifyWithResponse] Calling native method with callback id:', id);
+
+      const errorCode = method(registeredCallback, Number(id));
+      console.log('[promisifyWithResponse] Native method returned error code:', errorCode);
 
       // Handle synchronous errors immediately
       if (errorCode !== 0) {
@@ -359,12 +361,6 @@ export class NodeJSAskar implements Askar {
         }
         return;
       }
-
-      // Add timeout to detect if callback is never called
-      // setTimeout(() => {
-      //   // console.log('[promisifyWithResponse] Timeout reached - callback was never called')
-      //   reject(new Error('Callback timeout - native function did not call the callback'))
-      // }, 5000)
     });
   };
 
@@ -2002,29 +1998,77 @@ export class NodeJSAskar implements Askar {
     return fn;
   }
 
-  // Promise 기반 storeProvision 메서드
-  public async storeProvision(
-    options: StoreProvisionOptions
-  ): Promise<StoreHandle> {
-    console.log("[provision] types =", {
-      spec_uri: typeof options.specUri,
-      key_method: typeof options.keyMethod,
-      pass_key: typeof options.passKey, // ← 반드시 'string' 이어야 함
-      profile: typeof options.profile,
-      recreate: typeof options.recreate, // 'number'
+  public async storeProvision(options: StoreProvisionOptions): Promise<StoreHandle> {
+    console.log('[storeProvision] Starting with options:', {
+      specUri: options.specUri,
+      keyMethod: options.keyMethod,
+      passKey: options.passKey ? `[${options.passKey.length} chars]` : 'undefined',
+      profile: options.profile,
+      recreate: options.recreate
     });
-    const handle = await this.promisifyWithResponse<number>((cb, cbId) =>
-      this.nativeAskar.askar_store_provision(
-        options.specUri,
-        options.keyMethod ?? "",
-        options.passKey ?? "",
-        options.profile ?? null,
-        options.recreate ? 1 : 0,
-        cb,
-        cbId
-      )
-    );
 
-    return StoreHandle.fromHandle(handle);
+    const { profile, passKey, keyMethod, specUri, recreate } = serializeArguments(options)
+    
+    console.log('[storeProvision] After serializeArguments:', {
+      specUri,
+      keyMethod,
+      passKey: passKey ? `[${passKey.length} chars]` : 'undefined',
+      profile,
+      recreate
+    });
+
+    return new Promise(async(resolve, reject) => {
+      let timeoutId: NodeJS.Timeout;
+      
+      const cb = (id: number, errorCode: number, handle: number) => {
+        console.log('[storeProvision.cb] fired id=', id, 'err=', errorCode, 'handle=', handle);
+        clearTimeout(timeoutId);
+        deallocateCallbackBuffer(id);
+        
+        if (errorCode !== 0) {
+          const error = this.getAskarError(errorCode);
+          reject(error);
+          return;
+        }
+        
+        resolve(StoreHandle.fromHandle(handle));
+      };
+
+      const { nativeCallback, id } = toNativeStoreProvisionCallback(cb);
+      
+      console.log('[storeProvision] Calling native method with callback id:', id);
+      console.log(     specUri, 
+        keyMethod, 
+        passKey, 
+        profile, 
+        recreate, 
+        nativeCallback, 
+        id)
+      const errorCode = this.nativeAskar.askar_store_provision(
+        specUri, 
+        keyMethod, 
+        passKey, 
+        profile, 
+        recreate, 
+        nativeCallback, 
+        id
+      );
+
+      console.log('[storeProvision] Native method returned error code:', errorCode);
+
+      if (errorCode !== 0) {
+        deallocateCallbackBuffer(id);
+        const error = this.getAskarError(errorCode);
+        reject(error);
+        return;
+      }
+
+      // 타임아웃 추가 (콜백이 호출되면 클리어됨)
+      timeoutId = setTimeout(() => {
+        console.log('[storeProvision] Timeout reached - callback was never called');
+        deallocateCallbackBuffer(id);
+        reject(new Error('Callback timeout - native function did not call the callback'));
+      }, 10000);
+    });
   }
 }

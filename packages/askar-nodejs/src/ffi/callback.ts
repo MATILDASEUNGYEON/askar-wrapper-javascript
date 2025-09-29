@@ -8,6 +8,7 @@ import {
   FFI_VOID,
   FFI_STORE_HANDLE,
   FFI_INT8,
+  FFI_INT64
 } from "./primitives";
 
 // Generate unique type names to avoid conflicts
@@ -47,14 +48,11 @@ export const OptionCallback = koffi.proto(
 export const toNativeStoreProvisionCallback = (
   cb: NativeStoreProvisionCallback
 ) => {
-  // Use koffi.register for registered callbacks
-  const nativeCallback = koffi.register(cb, koffi.pointer(OptionCallback));
+  // OptionCallback을 사용하여 콜백 등록 (이전에 성공했던 방식)
+  const OptionCallbackPtrType = koffi.pointer(OptionCallback);
+  const nativeCallback = koffi.register(cb, OptionCallbackPtrType);
   const id = allocateCallbackBuffer(nativeCallback);
-
-  // Convert OptionCallback to void * for binding
-  const voidPtrCallback = koffi.as(nativeCallback, "void *");
-
-  return { nativeCallback: voidPtrCallback, id };
+  return { nativeCallback, id };
 };
 
 // New function to create void * callback for store provision
@@ -106,8 +104,8 @@ export const toNativeCallbackWithResponse = <R>(
 ) => {
   const typeName = generateUniqueTypeName("NativeCallbackWithResponse");
   const NativeCallbackWithResponseType = koffi.proto(typeName, FFI_VOID, [
-    FFI_CALLBACK_ID,
-    FFI_ERROR_CODE,
+    FFI_CALLBACK_ID,  // int64_t (cb_id)
+    FFI_INT64,        // int64_t (error_code) - Rust에서 i64로 정의됨
     responseFfiType,
   ]);
   const NativeCallbackWithResponsePtrType = koffi.pointer(
@@ -234,7 +232,7 @@ export const createHandleResponseCallback = (
 };
 
 export const Cb_StoreHandle = koffi.proto(
-  "void (int64_t cb_id, uint32_t err, uint32_t handle)"
+  "void (int64_t cb_id, int64_t err, size_t handle)"
 );
 export const Cb_Void = koffi.proto("void (int64_t cb_id, uint32_t err)");
 export const Cb_Int8 = koffi.proto(
@@ -249,3 +247,49 @@ export const Cb_Str = koffi.proto(
 export const Cb_ListHandle = koffi.proto(
   "void (int64_t cb_id, uint32_t err, uint32_t h)"
 );
+
+
+// String response callback converter
+export const toNativeStringCallback = (
+  cb: (id: number, errorCode: number, result: string) => void
+) => {
+  const nativeCallback = koffi.register(cb, Cb_Str);
+  const id = allocateCallbackBuffer(nativeCallback);
+  return { nativeCallback, id };
+};
+
+// Int8 response callback converter
+export const toNativeInt8Callback = (
+  cb: (id: number, errorCode: number, result: number) => void
+) => {
+  const nativeCallback = koffi.register(cb, Cb_Int8);
+  const id = allocateCallbackBuffer(nativeCallback);
+  return { nativeCallback, id };
+};
+
+// Int64 response callback converter
+export const toNativeInt64Callback = (
+  cb: (id: number, errorCode: number, result: number) => void
+) => {
+  const nativeCallback = koffi.register(cb, Cb_Int64);
+  const id = allocateCallbackBuffer(nativeCallback);
+  return { nativeCallback, id };
+};
+
+// Void callback converter (no response)
+export const toNativeVoidCallback = (
+  cb: (id: number, errorCode: number) => void
+) => {
+  const nativeCallback = koffi.register(cb, Cb_Void);
+  const id = allocateCallbackBuffer(nativeCallback);
+  return { nativeCallback, id };
+};
+
+// List handle callback converter
+export const toNativeListHandleCallback = (
+  cb: (id: number, errorCode: number, handle: number) => void
+) => {
+  const nativeCallback = koffi.register(cb, Cb_ListHandle);
+  const id = allocateCallbackBuffer(nativeCallback);
+  return { nativeCallback, id };
+};
