@@ -1,93 +1,34 @@
-import {
-  KdfMethod,
-  LogLevel,
-  Store,
-  StoreKeyMethod,
-  askar,
-  registerAskar,
-} from "@openwallet-foundation/askar-shared";
-import { NodeJSAskar } from "../../src/NodeJSAskar";
+import { KdfMethod, LogLevel, Store, StoreKeyMethod, askar, registerAskar } from '@openwallet-foundation/askar-shared'
+import { NodeJSAskar } from '../../src/NodeJSAskar'
 
-export const getRawKey = () =>
-  // 실제 프로젝트 키는 노출금지! 테스트용 시드 예시
-  Store.generateRawKey(Buffer.from("00000000000000000000000000000My1"));
-
-export const testStoreUri = process.env.URI || "sqlite://:memory:";
+export const getRawKey = () => Store.generateRawKey(Buffer.from('00000000000000000000000000000My1'))
+export const testStoreUri = process.env.URI || 'sqlite://:memory:'
 
 export const setupWallet = async () => {
-  const key = getRawKey();
-  console.log("Before Provision");
-  console.log("check key", key,"key type",typeof key);
-  console.log("testStoreUri", testStoreUri,"testStoreUri type",typeof testStoreUri);
-  console.log("KdfMethod.Raw", KdfMethod.Raw,"KdfMethod.Raw type",typeof KdfMethod.Raw);
-  console.log("StoreKeyMethod", StoreKeyMethod,"StoreKeyMethod type",typeof StoreKeyMethod);
-  const keyMethod = new StoreKeyMethod(KdfMethod.Raw);
-  console.log("keyMethod", keyMethod,"keyMethod type",typeof keyMethod);
-  const result = await Store.provision({
+  const key = getRawKey()
+  console.log("key", key,"key type",typeof key);
+  console.log("Starting Store.provision....");
+   const store = await Store.provision({
     recreate: true,
     uri: testStoreUri,
     keyMethod: new StoreKeyMethod(KdfMethod.Raw),
     passKey: key,
-  });
-  console.log("Provision succeeded");
-  return result;
-};
+  })
+  console.log("Store.provision done:", store);
+  return store
+}
 
 export const setup = () => {
-  registerAskar({ askar: new NodeJSAskar() });
-  askar.setDefaultLogger(); // ← no arguments
-};
+  registerAskar({ askar: new NodeJSAskar() })
+  console.log("Askar registered!");
+  askar.setDefaultLogger()
+  console.log("Logger set!");
 
-// 보기좋게 키를 마스킹
-const mask = (s: string | Buffer, visible = 6) => {
-  const str = Buffer.isBuffer(s) ? s.toString("utf8") : s;
-  if (!str) return "<empty>";
-  return str.length <= visible
-    ? str
-    : `${str.slice(0, visible)}…(${str.length})`;
-};
-
-// CLI 실행용 엔트리 포인트
-async function main() {
-  try {
-    setup();
-
-    const key = getRawKey();
-    console.log("🔑 Using raw key:", mask(key));
-    console.log("🗄️  Target URI  :", testStoreUri);
-
-    const handleOrStore = await setupWallet();
-
-    // 반환 타입이 구현에 따라 숫자 핸들이거나 Store 래퍼일 수 있으므로 안전하게 표기
-    const typeDesc =
-      typeof handleOrStore === "number"
-        ? `handle=${handleOrStore}`
-        : handleOrStore && typeof handleOrStore === "object"
-        ? "Store object"
-        : String(handleOrStore);
-
-    console.log(`✅ Provision succeeded (${typeDesc})`);
-    console.log("   You can now use the store (sessions, scans, etc.)");
-    process.exitCode = 0;
-  } catch (e) {
-    console.error("❌ Provision failed");
-    console.error(e);
-    process.exitCode = 1;
-  }
+  // console.log("keys:", Object.keys(askar))
+  // console.log("all props:", Object.getOwnPropertyNames(askar))
+  // console.log("proto props:", Object.getOwnPropertyNames(Object.getPrototypeOf(askar)))
+  
+  // console.log("askar version:", askar.version())
 }
 
-// CommonJS/ESM 환경 모두에서 동작하도록 가드
-// (ts-node/빌드 후 node 실행 모두 지원)
-const isMain =
-  typeof require !== "undefined" &&
-  typeof module !== "undefined" &&
-  require.main === module;
-
-if (isMain) {
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  main();
-}
-
-// 기존 유틸도 유지
-export const base64url = (str: string) =>
-  Buffer.from(str).toString("base64url");
+export const base64url = (str: string) => Buffer.from(str).toString('base64url')

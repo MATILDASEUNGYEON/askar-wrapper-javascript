@@ -1,6 +1,7 @@
 import type { KeyAlgorithm, SignatureAlgorithm } from '../enums'
 import type { KeyBackend } from '../enums'
 import type { LocalKeyHandle } from './handles'
+import { bls12_381 } from "@noble/curves/bls12-381"
 
 import { Buffer } from 'buffer'
 
@@ -64,6 +65,7 @@ export class Key {
 
   public get algorithm() {
     const alg = askar.keyGetAlgorithm({ localKeyHandle: this.handle })
+    if (!alg) throw new Error("algorithm not found")
     return keyAlgorithmFromString(alg)
   }
 

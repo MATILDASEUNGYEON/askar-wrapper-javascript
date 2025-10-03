@@ -40,10 +40,10 @@ describe('keys', () => {
     deepStrictEqual(
       key.jwkPublic,
       new Jwk({
-        crv: 'BLS12381G2',
-        kty: 'EC',
-        x: 'FH6hIRPzjlKW6LvPm0sHqyEbGqf8ag7UWpA_GFfefwq_kzDXSHmls9Yoza_be23zEw-pSOmKI_MGR1DahBa7Jbho2BGwDNV_QmyhxMYBwTH12Ltk_GLyPD4AP6pQVgge',
-        y: 'CA1TwLRnETa8qPKPktW4XHSkD_9Qmuxb7syIiOMAjWKsIaptbF2USMVp40NqyV7XD8qQ_kM4QNme49eGyn_aQSsVdQKy7zSeBlRubTIc4Gl3vL-SHk8NlQJ41-NlTpBU',
+        crv: 'BLS12381_G2',
+        kty: 'OKP',
+        x: 'lH6hIRPzjlKW6LvPm0sHqyEbGqf8ag7UWpA_GFfefwq_kzDXSHmls9Yoza_be23zEw-pSOmKI_MGR1DahBa7Jbho2BGwDNV_QmyhxMYBwTH12Ltk_GLyPD4AP6pQVgge',
+        y: undefined
       })
     )
   })
@@ -55,10 +55,9 @@ describe('keys', () => {
     deepStrictEqual(
       key.jwkPublic,
       new Jwk({
-        crv: 'BLS12381G1',
-        kty: 'EC',
-        x: 'Bsjb9FSBUJXuB1fCluEcUBLeAPgIbnZGfxPKyeN3LVjQaKFWzXfNtMFAY8VL-eu-',
-        y: 'BmNdJxcuusPBTqggIS-D-ItsxILnKz4q2G95at5K1d1-vFOtMJO0Aoh9OfGuQlvi',
+        crv: 'BLS12381_G1',
+        kty: 'OKP',
+        x: 'hsjb9FSBUJXuB1fCluEcUBLeAPgIbnZGfxPKyeN3LVjQaKFWzXfNtMFAY8VL-eu-'
       })
     )
   })

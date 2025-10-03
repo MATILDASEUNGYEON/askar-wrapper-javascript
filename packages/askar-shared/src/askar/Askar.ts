@@ -179,7 +179,7 @@ export type KeyGetAlgorithmOptions = { localKeyHandle: LocalKeyHandle }
 export type KeyGetEphemeralOptions = { localKeyHandle: LocalKeyHandle }
 export type KeyGetJwkPublicOptions = {
   localKeyHandle: LocalKeyHandle
-  algorithm: string
+  algorithm?: string
 }
 export type KeyGetJwkSecretOptions = { localKeyHandle: LocalKeyHandle }
 export type KeyGetJwkThumbprintOptions = {

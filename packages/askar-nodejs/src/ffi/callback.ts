@@ -11,6 +11,38 @@ import {
   FFI_INT64
 } from "./primitives";
 
+export const StoreProvisionCallback = koffi.proto(
+  'StoreProvisionCallback',
+  'void',
+  ['int64', 'int32', 'size_t']
+);
+export const StoreProvisionCallbackPtr = koffi.pointer(StoreProvisionCallback);
+
+// export const StoreProvisionCallback = koffi.proto(
+//   "void (int64, int32, size_t)"
+// );
+
+const callbackRegistry = new Map<number, any>();
+let nextId = 1;
+
+export function storehandle_toVoidPointerCallback(
+  cb: (id: number, errorCode: number, handle: number) => void
+) {
+  const registered = koffi.register(cb, koffi.pointer(StoreProvisionCallback));
+
+  const id = nextId++;
+  callbackRegistry.set(id, registered);
+
+  return { callback: registered, id };
+}
+
+export function storehandle_deallocateCallbackBuffer(id: number) {
+  const cb = callbackRegistry.get(id);
+  if (cb) {
+    koffi.unregister(cb);
+    callbackRegistry.delete(id);
+  }
+}
 // Generate unique type names to avoid conflicts
 let typeCounter = 0;
 const generateUniqueTypeName = (baseName: string): string => {
@@ -32,6 +64,11 @@ export const toNativeCallback = (cb: NativeCallback) => {
   const id = allocateCallbackBuffer(nativeCallback);
   return { nativeCallback, id };
 };
+export const Cb_StoreHandleStr = "Cb_StoreHandle";
+
+export const Cb_StoreHandle = koffi.proto(
+  "void (int64_t cb_id, int32_t err, uint32_t handle)"
+);
 
 // Store provision callback: (cb_id: CallbackId, err: ErrorCode, handle: StoreHandle)
 export type NativeStoreProvisionCallback = (
@@ -41,32 +78,39 @@ export type NativeStoreProvisionCallback = (
 ) => void;
 
 // Define OptionCallback type using koffi.proto
-export const OptionCallback = koffi.proto(
-  "void OptionCallback(int64_t callbackId, int64_t errorCode, size_t handle)"
-);
+// export const OptionCallback = koffi.proto(
+//   "void OptionCallback('void', ['int64', 'int32', 'uint32'])"
+// );
 
-export const toNativeStoreProvisionCallback = (
-  cb: NativeStoreProvisionCallback
-) => {
-  // OptionCallback을 사용하여 콜백 등록 (이전에 성공했던 방식)
-  const OptionCallbackPtrType = koffi.pointer(OptionCallback);
-  const nativeCallback = koffi.register(cb, OptionCallbackPtrType);
-  const id = allocateCallbackBuffer(nativeCallback);
-  return { nativeCallback, id };
+export const toNativeStoreProvisionCallback = (cb: NativeStoreProvisionCallback) => {
+  // ✅ register에는 "콜백 *포인터 타입"을 넘겨야 함
+  const fnptr = koffi.register(cb, koffi.pointer(Cb_StoreHandle));
+
+  // GC 방지용으로 핸들 보관
+  const id = allocateCallbackBuffer(fnptr);
+
+  // 네이티브 바인딩이 `void *cb` 를 받는다면 void*로 캐스팅해서 반환
+  const voidPtr = koffi.as(fnptr, "void *");
+
+  return { nativeCallback: voidPtr, id };
 };
 
 // New function to create void * callback for store provision
+// New function to create void * callback for store provision
 export const toVoidPointerCallback = (
-  cb: NativeCallbackWithResponse<number>
+  cb: (NativeCallbackWithResponse<number>)
 ) => {
-  // Convert NativeCallbackWithResponse to NativeStoreProvisionCallback with try-catch
+  console.log("typeof cb : ", typeof cb);
+
+  // JS → 네이티브로 전달할 콜백 시그니처 맞춤
   const storeProvisionCallback: NativeStoreProvisionCallback = (
     id,
     errorCode,
     handle
   ) => {
     try {
-      // Check if cb is a function before calling it
+      console.log("[storeProvisionCallback] invoked", { id, errorCode, handle });
+
       if (typeof cb === "function") {
         cb(id, errorCode, handle);
       } else {
@@ -75,23 +119,31 @@ export const toVoidPointerCallback = (
       }
     } catch (error) {
       console.error("Callback error in toVoidPointerCallback:", error);
-      // Re-throw the error to maintain the original behavior
       throw error;
     }
   };
 
-  // Register the callback with koffi
-  const registeredCallback = koffi.register(
-    storeProvisionCallback,
-    koffi.pointer(OptionCallback)
-  );
-  const id = allocateCallbackBuffer(registeredCallback);
+  // JS 콜백을 네이티브 포인터로 등록
+  // const registeredCallback = koffi.register(
+  //   storeProvisionCallback,
+  //   koffi.pointer(OptionCallback)
+  // );
 
-  // Convert to void * pointer
-  const voidPtr = koffi.as(registeredCallback, "void *");
+  // GC 방지용으로 id 발급
+  // const id = allocateCallbackBuffer(registeredCallback);
 
-  return { callback: voidPtr, id };
+  // void * 포인터로 캐스팅
+  // const voidPtr = koffi.as(registeredCallback, "void *");
+
+  // 👉 테스트용으로 registeredCallback도 함께 반환
+  // return { callback: voidPtr, id, registeredCallback };
+  
+  // 임시 구현
+  throw new Error("toVoidPointerCallback not implemented");
 };
+
+
+const Cb_StoreHandlePtr = koffi.pointer(Cb_StoreHandle);
 
 export type NativeCallbackWithResponse<R> = (
   id: number,
@@ -105,7 +157,7 @@ export const toNativeCallbackWithResponse = <R>(
   const typeName = generateUniqueTypeName("NativeCallbackWithResponse");
   const NativeCallbackWithResponseType = koffi.proto(typeName, FFI_VOID, [
     FFI_CALLBACK_ID,  // int64_t (cb_id)
-    FFI_INT64,        // int64_t (error_code) - Rust에서 i64로 정의됨
+    FFI_ERROR_CODE,        // int64_t (error_code) - Rust에서 i64로 정의됨
     responseFfiType,
   ]);
   const NativeCallbackWithResponsePtrType = koffi.pointer(
@@ -129,6 +181,7 @@ export const toNativeCallbackWithResponse = <R>(
   const id = allocateCallbackBuffer(nativeCallback);
   return { nativeCallback, id };
 };
+
 
 export type NativeLogCallback = (
   context: unknown,
@@ -200,6 +253,7 @@ export const createNativeCallback = <T extends any[]>(
   ffiTypes: any[]
 ) => {
   const typeName = generateUniqueTypeName("GenericCallback");
+  console.log('typeName in createNativeCallback', typeName);
   const GenericCallbackType = koffi.proto(typeName, FFI_VOID, [
     FFI_CALLBACK_ID,
     FFI_ERROR_CODE,
@@ -231,21 +285,19 @@ export const createHandleResponseCallback = (
   return createNativeCallback(cb, [FFI_STORE_HANDLE]);
 };
 
-export const Cb_StoreHandle = koffi.proto(
-  "void (int64_t cb_id, int64_t err, size_t handle)"
-);
-export const Cb_Void = koffi.proto("void (int64_t cb_id, uint32_t err)");
+
+export const Cb_Void = koffi.proto("void (int64_t cb_id, uint64_t err)");
 export const Cb_Int8 = koffi.proto(
-  "void (int64_t cb_id, uint32_t err, int8_t v)"
+  "void (int64_t cb_id, uint64_t err, int8_t v)"
 );
 export const Cb_Int64 = koffi.proto(
-  "void (int64_t cb_id, uint32_t err, int64_t v)"
+  "void (int64_t cb_id, uint64_t err, int64_t v)"
 );
 export const Cb_Str = koffi.proto(
-  "void (int64_t cb_id, uint32_t err, const char *s)"
+  "void (int64_t cb_id, uint64_t err, const char *s)"
 );
 export const Cb_ListHandle = koffi.proto(
-  "void (int64_t cb_id, uint32_t err, uint32_t h)"
+  "void (int64_t cb_id, uint64_t err, uint32_t h)"
 );
 
 

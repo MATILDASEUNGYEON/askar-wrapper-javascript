@@ -38,7 +38,8 @@ describe('Error', () => {
   test('set error code to non 0 incorrect async call where the error is inside the callback', async () => {
     const store = await setupWallet()
     await store.close()
-
+    console.log("Store Closed")
     await rejects(() => store.close(), { code: 5, message: 'Invalid store handle' })
+    console.log("Store Close Rejected as expected")
   })
 })
